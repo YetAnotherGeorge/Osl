@@ -1,0 +1,22 @@
+int MatchCol(color a, color b, float tolerance)
+{
+    if(abs(a[0] - b[0]) + abs(a[1] - b[1]) + abs(a[2] - b[2]) < tolerance)
+        return 1;
+    return 0; 
+}
+
+shader Test(
+    output color Output_Color = 0,
+    color a = 0,
+    color b = 0,
+    float tolerance = 0
+    )
+{
+    if(MatchCol(a, b, tolerance) == 1)
+    {
+        Output_Color = color(1);
+        return;
+    }
+    Output_Color = color(0);
+    return;
+}

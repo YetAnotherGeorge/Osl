@@ -1,0 +1,24 @@
+#define X 0
+#define Y 1
+#define Z 2
+
+#define R 0
+#define G 1
+#define B 2
+
+#define point2(a, b) point(a, b, 0.0)
+#define fract(val) mod(val, 1.0)
+
+shader RGBAdd(
+    output color Output_Color = 0,
+    color in_tex = color(0)         [[string label = "Input Tex"]],
+    point add = point(0)            [[string label = "Add To R | G | B channels"]],
+    float divide_by = 1.0           [[string label = "Divide input for finer control"]],
+    int norm = 0                    [[string label = "Cap at 1 (0 = false | 1 = true)"]]
+    )
+{    
+    color tc = color(in_tex[R] + add[R] / divide_by, in_tex[G] + add[G] / divide_by, in_tex[B] + add[B] / divide_by);
+    if(norm != 0)
+        tc = min(abs(tc), 1.0);
+    Output_Color = tc;
+}

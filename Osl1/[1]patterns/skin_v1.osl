@@ -1,0 +1,318 @@
+float DistLine2D(point p, point p0, point p1)
+    {
+    vector line_dir = p0 - p1;
+    return abs( dot(p0 - p, normalize(vector(line_dir[1], -line_dir[0], 0.0))) );
+    }
+float DistLineSegment2D(point p, point p0, point p1)
+    {
+    vector dir_p = p - p0;
+    vector dir = p1 - p0;
+    float t = clamp(dot(dir_p, dir) / dot(dir, dir), 0.0, 1.0);
+    return length(dir_p - dir * t);
+    }
+float sdTriangle( point p, point p0, point p1, point p2 )
+    {
+    point e0 = p1 - p0;
+    point e1 = p2 - p1;
+    point e2 = p0 - p2;
+
+    point v0 = p - p0;
+    point v1 = p - p1;
+    point v2 = p - p2;
+
+    point pq0 = v0 - e0*clamp( dot(v0,e0)/dot(e0,e0), 0.0, 1.0 );
+    point pq1 = v1 - e1*clamp( dot(v1,e1)/dot(e1,e1), 0.0, 1.0 );
+    point pq2 = v2 - e2*clamp( dot(v2,e2)/dot(e2,e2), 0.0, 1.0 );
+    
+    float s = e0[0]*e2[1] - e0[1]*e2[0];
+    point d = min( min( point( dot( pq0, pq0 ), s*(v0[0]*e0[1]-v0[1]*e0[0]), 0.0 ),
+                    point( dot( pq1, pq1 ), s*(v1[0]*e1[1]-v1[1]*e1[0]), 0.0 )),
+                    point( dot( pq2, pq2 ), s*(v2[0]*e2[1]-v2[1]*e2[0]), 0.0 ));
+
+    return -sqrt(d[0])*sign(d[1]);
+    }
+float dTriangle( point p, point p0, point p1, point p2 )
+    {
+    point e0 = p1 - p0;
+    point e1 = p2 - p1;
+    point e2 = p0 - p2;
+
+    point v0 = p - p0;
+    point v1 = p - p1;
+    point v2 = p - p2;
+
+    point pq0 = v0 - e0*clamp( dot(v0,e0)/dot(e0,e0), 0.0, 1.0 );
+    point pq1 = v1 - e1*clamp( dot(v1,e1)/dot(e1,e1), 0.0, 1.0 );
+    point pq2 = v2 - e2*clamp( dot(v2,e2)/dot(e2,e2), 0.0, 1.0 );
+    
+    float s = e0[0]*e2[1] - e0[1]*e2[0];
+    point d = min( min( point( dot( pq0, pq0 ), s*(v0[0]*e0[1]-v0[1]*e0[0]), 0.0 ),
+                    point( dot( pq1, pq1 ), s*(v1[0]*e1[1]-v1[1]*e1[0]), 0.0 )),
+                    point( dot( pq2, pq2 ), s*(v2[0]*e2[1]-v2[1]*e2[0]), 0.0 ));
+
+    return sqrt(d[0]);
+    }
+//end of distance functions
+
+struct vec4
+    {
+    float x, y, z, w;
+    };
+vec4 vec4_Make(float x, float y, float xx, float yy)
+    {
+    vec4 vec;
+    vec.x = x;
+    vec.y = y;
+    vec.z = xx;
+    vec.w = yy;
+
+    return vec;
+    }
+vec4 vec4_Make(point p)
+    {
+    vec4 vec;
+    vec.x = p[0];
+    vec.y = p[1];
+    vec.z = p[2];
+    vec.w = 0.0;
+
+    return vec;
+    }
+vec4 vec4_Make2D(point a, point b)
+    {
+    vec4 vec;
+    vec.x = a[0];
+    vec.y = a[1];
+    vec.z = b[0];
+    vec.w = b[1];
+    return vec;
+    }
+point vec4_ToPointFirst(vec4 vec) //converts x and y to a point type
+    {
+    return point(vec.x, vec.y, 0.0);
+    }
+point vec4_ToPointLast(vec4 vec) //converts x and y to a point type
+    {
+    return point(vec.z, vec.w, 0.0);
+    }
+//local space: (0, 0) - (1, 1)
+vec4 vec4_Grid2D(point pos, float size)
+    {
+    point scaled = pos / size;
+    return vec4_Make2D(floor(scaled), mod(scaled, 1.0));
+    }
+//end of vec4
+
+struct vec2
+    {
+    float x, y;
+    };
+vec2 vec2_Make(float x, float y)
+    {
+    vec2 vec;
+    vec.x = x;
+    vec.y = y;
+    return vec;
+    }
+//end of vec2
+
+struct gp3 //grid points 3
+    {
+    //args used to generate:
+    point identifier;
+    float min_r, max_r;
+
+    point points[3]; //point[2] = 1 / 0; if point[2] == 0 then point cannot be used
+    float radiuses[3];
+
+    int c_top, c_bottom, c_left, c_right;
+    };
+gp3 gp3_Generate(vec4 at, float min_r, float max_r)
+    {
+    //all coordinates are generated within local space 0 - 1
+    gp3 gp;
+    gp.c_bottom = -1;
+    gp.c_top = -1;
+    gp.c_left = -1;
+    gp.c_right = -1;
+
+    gp.min_r = min_r;
+    gp.max_r = max_r;
+
+    point tp = vec4_ToPointFirst(at);
+    gp.identifier = point(tp);
+
+    float tr = max_r - min_r;
+    for(int i = 0; i < 3; i++)
+    {
+        //generate hash
+        tp[2] += 5.123;
+        point h = noise("cell", tp * M_PI);
+
+        gp.radiuses[i] = min_r + h[0] * tr;
+
+        gp.points[i] = point(gp.radiuses[i] + h[1] * (1.0 - gp.radiuses[i] * 2.0), 
+            gp.radiuses[i] + h[2] * (1.0 - gp.radiuses[i] * 2.0), 0.0);
+        
+        float d_bottom = gp.points[i][1];
+        float d_top = 1.0 - gp.points[i][1];
+        float d_left = gp.points[i][0];
+        float d_right = 1.0 - gp.points[i][0];
+
+        if(gp.c_bottom == -1 || gp.points[gp.c_bottom][1] > d_bottom) //smallest y
+        {
+            gp.c_bottom = i;
+        }
+        if(gp.c_top == -1 || (1.0 - gp.points[gp.c_top][1]) > d_top)
+        {
+            gp.c_top = i;
+        }
+        if(gp.c_left == -1 || gp.points[gp.c_left][0] > d_left)
+        {
+            gp.c_left = i;
+        }
+        if(gp.c_right == -1 || (1.0 - gp.points[gp.c_right][0]) > d_right)
+        {
+            gp.c_right = i;
+        }
+    }
+    return gp;
+    }
+gp3 gp3_Generate(point identifier, float min_r, float max_r)
+    {
+    //all coordinates are generated within local space 0 - 1
+    gp3 gp;
+    gp.c_bottom = -1;
+    gp.c_top = -1;
+    gp.c_left = -1;
+    gp.c_right = -1;
+
+    gp.min_r = min_r;
+    gp.max_r = max_r;
+
+    gp.identifier = identifier;
+
+    point tp = point(identifier);
+    float tr = max_r - min_r;
+    for(int i = 0; i < 3; i++)
+    {
+        //generate hash
+        tp[2] += 5.123;
+        point h = noise("cell", tp * M_PI);
+
+        gp.radiuses[i] = min_r + h[0] * tr;
+
+        gp.points[i] = point(gp.radiuses[i] + h[1] * (1.0 - gp.radiuses[i] * 2.0), 
+            gp.radiuses[i] + h[2] * (1.0 - gp.radiuses[i] * 2.0), 0.0);
+        
+        float d_bottom = gp.points[i][1];
+        float d_top = 1.0 - gp.points[i][1];
+        float d_left = gp.points[i][0];
+        float d_right = 1.0 - gp.points[i][0];
+
+        if(gp.c_bottom == -1 || gp.points[gp.c_bottom][1] > d_bottom) //smallest y
+        {
+            gp.c_bottom = i;
+        }
+        if(gp.c_top == -1 || (1.0 - gp.points[gp.c_top][1]) > d_top)
+        {
+            gp.c_top = i;
+        }
+        if(gp.c_left == -1 || gp.points[gp.c_left][0] > d_left)
+        {
+            gp.c_left = i;
+        }
+        if(gp.c_right == -1 || (1.0 - gp.points[gp.c_right][0]) > d_right)
+        {
+            gp.c_right = i;
+        }
+    }
+    return gp;
+    }
+float gp3_Distance(gp3 grid, point pos_n, float max_d)
+    {
+    float circle_min_d = distance(pos_n, grid.points[0]);
+    int circle_min = 0;
+
+    for(int i = 1; i < 3; i++)
+    {
+        float tf = distance(pos_n, grid.points[i]);
+        if(tf < circle_min_d)
+        {
+            circle_min_d = tf;
+            circle_min = i;
+        }
+    }
+    if(circle_min_d < grid.radiuses[circle_min])
+    {
+        //warp space towards grid.points[circle_min]
+        float nd = circle_min_d / grid.radiuses[circle_min]; //normalized distance
+        float t = pow(nd, 3.0);
+        pos_n = pos_n * t + grid.points[circle_min] * (1.0 - t);
+    }
+
+    
+    float d = sdTriangle(pos_n, grid.points[0], grid.points[1], grid.points[2]);
+
+    //if(d < 0.0)
+    {
+        //take outside into consideration
+        point rtop =    point(0.0, 1.0, 0.0); //relative top
+        point rbottom = point(0.0, -1.0, 0.0);
+        point rleft =   point(1.0, 0.0, 0.0);
+        point rright =  point(-1.0, 0.0, 0.0);
+
+        gp3 grid_top =       gp3_Generate(grid.identifier, grid.min_r, grid.max_r);
+        gp3 grid_bottom =    gp3_Generate(grid.identifier, grid.min_r, grid.max_r);
+        gp3 grid_left =      gp3_Generate(grid.identifier, grid.min_r, grid.max_r);
+        gp3 grid_right =     gp3_Generate(grid.identifier, grid.min_r, grid.max_r);
+
+        d = min(d, DistLineSegment2D( pos_n, grid.points[grid.c_top], grid_top.points[grid_top.c_bottom] + rtop) );
+        //d = min(d, DistLineSegment2D( pos_n, grid.points[grid.c_bottom], grid_bottom.points[grid_bottom.c_top] + rbottom) );
+
+        // if(grid.c_top != -1 && grid_top.c_bottom != -1)
+        //     d = min(d, DistLineSegment2D(pos_n, grid.points[grid.c_bottom], grid_top.points[grid_top.c_top]));
+        // if(grid.c_bottom != -1 && grid_bottom.c_top != -1)
+        //     d = min(d, DistLineSegment2D(pos_n, grid.points[grid.c_bottom], grid_bottom.points[grid_bottom.c_top]));
+        
+        // if(grid.c_left != -1 && grid_left.c_right != -1)
+        //     d = min(d, DistLineSegment2D(pos_n, grid.points[grid.c_left], grid_left.points[grid_left.c_right]));
+        // if(grid.c_right != -1 && grid_right.c_left != -1)
+        //     d = min(d, DistLineSegment2D(pos_n, grid.points[grid.c_right], grid_right.points[grid_right.c_left]));
+    }
+
+    d = abs(d);
+    if(d < max_d)
+        return 1.0 - d / max_d;
+    return 0.0;
+    }
+//end of gp3
+
+//end of structs
+shader Test(
+    output color Output_Color = 0,
+    point uv_coords = point(u, v, 0)        [[string label = "Projection"]],
+    float global_scale = 1.0                [[string label = "Global Scale"]],
+    
+
+    float block_size = 0.1,
+    float min_r = 0.1,
+    float max_r = 0.2,
+    float max_d = 0.1
+    )
+{
+    //setup
+    point pos = uv_coords * global_scale;
+    color col = color(0.0, 0.0, 0.0);
+
+    vec4 gpos = vec4_Grid2D(pos, block_size); //grid pos
+    gp3 grid = gp3_Generate(gpos, min_r, max_r);
+
+    if(max(abs(gpos.z - 0.5), abs(gpos.w - 0.5)) > 0.49)
+    {
+        Output_Color = color(1.0, 0.0, 0.0);
+        return;
+    }
+
+    Output_Color = color( gp3_Distance(grid, vec4_ToPointLast(gpos), max_d) );
+}

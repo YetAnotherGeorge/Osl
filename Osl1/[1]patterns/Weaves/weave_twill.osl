@@ -1,0 +1,111 @@
+#define X 0
+#define Y 1
+#define Z 2
+
+#define R 0
+#define G 1
+#define B 2
+
+#define point2(a, b) point(a, b, 0.0)
+#define fract(val) mod(val, 1.0)
+
+//rotation
+point Rot2D(point pos, point around, float theta)
+    {
+    return point2(  cos(theta) * (pos[X] - around[X]) - sin(theta) * (pos[Y] - around[Y]) + around[X],
+                    sin(theta) * (pos[X] - around[X]) + cos(theta) * (pos[Y] - around[Y]) + around[Y]);
+    }
+point RotOrigin2D(point pos, float theta)
+    {
+    return point(  cos(theta) * (pos[X]) - sin(theta) * (pos[Y]),
+                    sin(theta) * (pos[X]) + cos(theta) * (pos[Y]), 
+                    0.0);
+    }
+//
+
+
+//fabric:
+point WeaveTwill(point pos)
+    {
+    point id = floor(pos);
+    float hgrad = (sin(((pos[X] + 0.5) * 0.5 + id[Y] / 2.0) * M_PI) + 1.0) / 2.0;
+    float vgrad = (sin(((pos[Y] - 2.0) * 0.5 + id[X] / 2.0) * M_PI) + 1.0) / 2.0;
+    return point(mod(floor((id[X] + id[Y]) / 2.0), 2.0), hgrad, vgrad);
+    }
+float DWeave(point pos, float WEAVE_GRADIENT, float WEAVE_WIDTH)
+    {
+    point local = (fract(pos) - 0.5) * 2.0;
+
+    float d_horizontal = abs(local[Y] / WEAVE_WIDTH);
+    float c_horizontal = 0.0;
+    float d_vertical = abs(local[X] / WEAVE_WIDTH);
+    float c_vertical = 0.0;
+    point weave_data = WeaveTwill(pos);
+
+    if(d_horizontal < 1.0)
+        c_horizontal += weave_data[1] * (1.0 - smoothstep(1.0 - WEAVE_GRADIENT, 1.0, d_horizontal));
+    if(d_vertical < 1.0)
+        c_vertical+= weave_data[2] * (1.0 - smoothstep(1.0 - WEAVE_GRADIENT, 1.0, d_vertical));
+
+    if(d_horizontal < 1.0 && d_vertical < 1.0)
+    {
+        if(weave_data[0] == 0.0)
+            c_vertical = 0.0;
+        else
+            c_horizontal = 0.0;
+    }
+    return max(c_horizontal, c_vertical);
+    }
+color ColWeave(point pos, float WEAVE_GRADIENT, float WEAVE_WIDTH, color col_a, color col_b)
+    {
+    point local = (fract(pos) - 0.5) * 2.0;
+    color col = color(0.0);
+
+    float d_horizontal = abs(local[Y] / WEAVE_WIDTH);
+    float c_horizontal = 0.0;
+    float d_vertical = abs(local[X] / WEAVE_WIDTH);
+    float c_vertical = 0.0;
+    point weave_data = WeaveTwill(pos);
+
+    if(d_horizontal < 1.0)
+        c_horizontal += weave_data[1] * (1.0 - smoothstep(1.0 - WEAVE_GRADIENT, 1.0, d_horizontal));
+    if(d_vertical < 1.0)
+        c_vertical+= weave_data[2] * (1.0 - smoothstep(1.0 - WEAVE_GRADIENT, 1.0, d_vertical));
+
+    if(d_horizontal < 1.0 && d_vertical < 1.0)
+    {
+        if(weave_data[0] == 0.0)
+            c_vertical = 0.0;
+        else
+            c_horizontal = 0.0;
+    }
+
+
+    if(c_horizontal > c_vertical)
+        return c_horizontal * col_a;
+    return c_vertical * col_b;
+    }
+//fabric end
+
+shader WeaveTwillCol(
+    output color gl_FragCol = color(0.0),
+    point proj = point(u, v, 0.0),
+    color col_a = color(1.0),
+    color col_b = color(1.0),
+
+    float GLOBAL_SCALE = 100.0,
+    float WEAVE_WIDTH = 0.5,
+    float WEAVE_GRADIENT = 0.7,
+    float WEAVE_LAYERS = 3.0,
+    float SEED = 1.1
+)
+{
+    point pos = proj * GLOBAL_SCALE;
+    color col = color(0.0);
+    for(float i = 0.0; i < WEAVE_LAYERS; i++)
+    {
+        point new_pos = RotOrigin2D(pos, noise("hash", i + sin(SEED)) * M_PI * 2.0);
+        col = max(col, ColWeave(new_pos, WEAVE_GRADIENT, WEAVE_WIDTH, col_a, col_b));
+    }
+    gl_FragCol = col;
+}

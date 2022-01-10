@@ -1,0 +1,251 @@
+//color op
+color MixCol(color a, float fac_a, color b)
+{
+    float fac_b = 1.0 - fac_a;
+    color result = color(a[0] * fac_a + b[0] * fac_b,
+        a[1] * fac_a + b[1] * fac_b,
+        a[2] * fac_a + b[2] * fac_b);
+    return result;
+}
+
+//math
+void NoiseTranslate2D(point p, float radius, float scale)
+{
+    color a = noise("cell", p * scale);
+    float n0 = a[0] * radius;
+    float n1 = a[1] * radius;
+    float n2 = a[2] * radius;
+
+    p[0] += n0;
+    p[1] += n1;
+}
+point CellNoiseTranslate2D(point p, float radius, float scale)
+{
+    color a = noise("cell", p * scale);
+    float n0 = a[0] * radius;
+    float n1 = a[1] * radius;
+    float n2 = a[2] * radius;
+
+    return point(p[0] + n0, p[1] + n1, 0);
+}
+float Dist2D(point a, point b)
+{
+    return sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) );
+}
+float Dist2D(point a, float x, float y)
+{
+    return sqrt((a[0] - x) * (a[0] - x) + (a[1] - y) * (a[1] - y) );
+}
+float DistLine2D(point p, point P1, point P2)
+{
+    float delta_x = P2[0] - P1[0];
+    if(abs(delta_x) < 0.0001)
+        return abs(p[0] - P1[0]);
+    float delta_y = P2[1] - P1[1];
+
+    float tf = abs( delta_x * (P1[1] - p[1]) - (P1[0] - p[0]) * delta_y );
+    tf = tf / sqrt(delta_x * delta_x + delta_y * delta_y);
+    return tf;
+}
+float TriHeight2D(point P0, point P1, point P2)
+{
+    float p01 = Dist2D(P0, P1);
+    float p02 = Dist2D(P0, P2);
+    float p12 = Dist2D(P1, P2);
+
+    float s = (p01 + p02 + p12) / 2.0;
+    float area_double = sqrt( s * (s - p01) * (s - p02) * (s - p12) ) * 2;
+    return area_double / p12;
+}
+
+int InsideConvexPoly2D(point p, point polygon[])
+{
+    point poly_vect, point_vect;
+    int s = 2, ts;
+    for(int i = 0; i < arraylength(polygon) - 1; i++)
+    {
+        poly_vect = polygon[i + 1] - polygon[i];
+        point_vect = p - polygon[i];
+
+        ts = (int)sign(poly_vect[0] * point_vect[1] - poly_vect[1] * point_vect[0]);
+        if (s != 2 && s != ts)
+            return 0;
+        s = ts;
+    }
+    poly_vect = polygon[0] - polygon[arraylength(polygon) - 1];
+    point_vect = p - polygon[arraylength(polygon) - 1];
+
+    ts = (int)sign(poly_vect[0] * point_vect[1] - poly_vect[1] * point_vect[0]);
+    if (s != ts)
+        return 0;
+    return 1;
+}
+
+//display
+color Circle2D(color c, point p, float x, float y, float rad)
+{
+    float dist = Dist2D(p, x, y);
+    if(dist <= rad)
+    {
+        dist /= rad;
+        return color(dist, dist, dist);
+    }
+    return c;
+}
+color Circle2D(color c, point p, point at, float rad)
+{
+    float dist = Dist2D(p, at);
+    if(dist <= rad)
+    {
+        dist /= rad;
+        return color(dist, dist, dist);
+    }
+    return c;
+}
+color CircleEmpty2D(color c, point p, point at, float rad, float width)
+{
+    float dist = abs(Dist2D(p, at) - rad);
+    if(dist < width)
+    {
+        dist /= width;
+        return color(dist, dist, dist);
+    }
+    return c;
+}
+//p[0] = x, p[1] = y, p[2] = radius
+color DebugPass2D(color c, point p, point data)
+{
+    float dist = Dist2D(p, data[0], data[1]);
+    if(dist < data[2])
+    {
+        float dist_n = dist / data[2];
+        float r = c[0] * c[0] * c[0] * dist_n;
+        float g = c[1] * c[2] * dist_n; 
+        float b = noise(p[0] * dist, p[1] * dist) * dist_n;        
+        
+        return color(r, g, b);
+    }
+    return c;
+}
+
+
+struct Grid
+{
+    //9 10 11 12
+    //1 2  3  13
+    //8 0  4  14
+    //7 6  5  15
+    point points[9];        //0 is center, 1 - 8 are the exterior points starting from top left moving clockwise
+    point in_quad[4];
+    point current;
+};
+Grid Grid_3_Generate(point current, float circle_diameter, float noise_scale, float noise_pow)
+{
+    Grid grid;
+    grid.current = current;
+    float rad = circle_diameter / 2;
+    grid.points[0] = point(floor(current[0] / circle_diameter) * circle_diameter,
+        floor(current[1] / circle_diameter) * circle_diameter, 0);
+    
+    grid.points[1] = point(grid.points[0][0] - circle_diameter  , grid.points[0][1] + circle_diameter, 0);  //top left
+    grid.points[2] = point(grid.points[0][0]                    , grid.points[0][1] + circle_diameter, 0);  //top mid
+    grid.points[3] = point(grid.points[0][0] + circle_diameter  , grid.points[0][1] + circle_diameter, 0);  //top right
+    grid.points[4] = point(grid.points[0][0] + circle_diameter  , grid.points[0][1]                  , 0);  //mid right
+    grid.points[5] = point(grid.points[0][0] + circle_diameter  , grid.points[0][1] - circle_diameter, 0);  //bottom right
+    grid.points[6] = point(grid.points[0][0]                    , grid.points[0][1] - circle_diameter, 0);  //bottom mid
+    grid.points[7] = point(grid.points[0][0] - circle_diameter  , grid.points[0][1] - circle_diameter, 0);  //bottom left
+    grid.points[8] = point(grid.points[0][0] - circle_diameter  , grid.points[0][1]                  , 0);  //mid left
+
+    for(int i = 0; i < 9; i++)
+        grid.points[i] = CellNoiseTranslate2D(grid.points[i], rad * noise_pow, noise_scale);
+    
+    return grid;
+}
+float Grid_MinDistPoint(Grid grid)
+{
+    float md = Dist2D(grid.current, grid.points[0]);
+    for(int i = 0; i < 9; i++)
+    {
+        float tf = Dist2D(grid.current, grid.points[i]);
+        if(tf < md)
+            md = tf;
+    }
+    return md;
+}
+float Grid_3_MinDistLine(Grid grid)
+{
+    //distance to closest line keeping in mind the quad point is in
+    //1 2 3
+    //8 0 4
+    //7 6 5
+
+    point quad_p[4];
+    quad_p[0] = grid.points[1];
+    quad_p[1] = grid.points[2];
+    quad_p[2] = grid.points[0];
+    quad_p[3] = grid.points[8];
+    if(InsideConvexPoly2D(grid.current, quad_p) == 0)
+    {
+        quad_p[0] = grid.points[2];
+        quad_p[1] = grid.points[3];
+        quad_p[2] = grid.points[4];
+        quad_p[3] = grid.points[0];
+
+        if(InsideConvexPoly2D(grid.current, quad_p) == 0)
+        {
+            quad_p[0] = grid.points[0];
+            quad_p[1] = grid.points[4];
+            quad_p[2] = grid.points[5];
+            quad_p[3] = grid.points[6];
+
+            if(InsideConvexPoly2D(grid.current, quad_p) == 0)
+            {
+                quad_p[0] = grid.points[8];
+                quad_p[1] = grid.points[0];
+                quad_p[2] = grid.points[6];
+                quad_p[3] = grid.points[7];
+            }
+        }
+    }
+    grid.in_quad = quad_p;
+
+    //process points
+    float md = DistLine2D(grid.current, quad_p[0], quad_p[1]); //top
+    float tf = DistLine2D(grid.current, quad_p[2], quad_p[3]); //bottom
+    if(tf < md)
+        md = tf;
+    tf = DistLine2D(grid.current, quad_p[0], quad_p[3]); //left
+    if(tf < md)
+        md = tf;
+    tf = DistLine2D(grid.current, quad_p[1], quad_p[2]); //right
+    if(tf < md)
+        md = tf;
+    return md;
+}
+
+shader Test(
+    output color Output_Color = 0,
+    point uv_coords = point(u, v, 0) [[string label = "Projection"]],
+    color translate_noise = color(0,0, 0),
+    float translate_noise_pow = 0.0,
+    float scale = 1.0,
+    float scale_x = 1.0,
+    float scale_y = 1.0,
+
+    float circle_diameter = 2.0,
+    float t_noise_scale = 0, 
+    float t_noise_pow = 1.0,
+    int corner_smooth = 1)
+{
+    point pos = uv_coords * scale;
+    pos[0] += translate_noise[0] * translate_noise_pow;
+    pos[1] += translate_noise[1] * translate_noise_pow;
+    pos[0] *= scale_x;
+    pos[1] *= scale_y;
+
+    Grid grid = Grid_3_Generate(pos, circle_diameter, t_noise_scale, t_noise_pow);
+    float d_line = Grid_3_MinDistLine(grid);
+    float d_point = Grid_MinDistPoint(grid);
+
+    Output_Color = color(d_point);
+}

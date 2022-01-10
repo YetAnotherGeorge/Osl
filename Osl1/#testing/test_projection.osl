@@ -1,0 +1,15 @@
+shader ClosestUV_OslProjection (
+    int size_u = 0,
+    int size_v = 0,
+    output point uvw = 0)
+{
+    float iu = 1.0 / (float)size_u;
+    float iv = 1.0 / (float)size_v;
+
+    float iu_mid = 1.0 / (2.0 * (float)size_u);
+    float iv_mid = 1.0 / (2.0 * (float)size_v);
+
+    float u_closest = floor( u / iu ) * iu + iu_mid;
+    float v_closest = floor( v / iv ) * iv + iv_mid;
+    uvw = point(u_closest, v_closest, 0);
+}

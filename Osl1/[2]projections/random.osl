@@ -1,0 +1,14 @@
+shader RandomUV_OslProjection (
+    color rcol = color(0),
+    float scale = 1.0,
+    float z_pow = 1.0,
+    output point uv = 0)
+{
+    point pos = transform("world", "object", P);
+    float z_offset = pos[2] * z_pow;
+
+    float ru = u * rcol[0];
+    float rv = v * rcol[1];
+
+    uv = point( (ru + z_offset ) * scale, (rv + z_offset ) * scale, 0);
+}

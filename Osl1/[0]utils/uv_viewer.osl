@@ -1,0 +1,29 @@
+#define X 0
+#define Y 1
+#define Z 2
+
+#define R 0
+#define G 1
+#define B 2
+
+#define point2(a, b) point(a, b, 0.0)
+#define fract(val) mod(val, 1.0)
+
+shader LinesBox(
+    output color OutputColor = color(0),
+    point proj = point(u, v, 0.0)               [[string label = "UV Projection"]],
+    point test_point = point(0.0)               [[string label = "point: X | Y | radius"]]
+)
+{
+    point pos = fract(proj);
+    float dc = length(proj);
+    dc = smoothstep(0.0, 5, dc);
+
+    float dp = distance(proj, point2(test_point[X], test_point[Y]));
+    if(dp < test_point[2])
+    {
+        OutputColor = color(0.0, 0.0, smoothstep(0.0, 1.0, dp / test_point[2]));
+        return;
+    }
+    OutputColor = color(pos[R] * dc, pos[G] * dc, 0.0);
+}

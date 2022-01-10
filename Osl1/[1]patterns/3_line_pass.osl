@@ -1,0 +1,26 @@
+//pm: 3.5, h: 6, w: 30, fac: 38
+color Lines_3_Pass(color c, point pos, float period_mult, float height, float width, float fac)
+{
+    float s = sin(pos[0] * period_mult) * height;
+    float c_abs = abs(cos(pos[0] * period_mult) * height);
+    float d_x = abs(s - pos[0] * c_abs * fac);
+    
+    if(d_x < width)
+        return color(1, 1, 1);
+    return c;
+}
+
+shader Test(
+    output color Output_Color = 0,
+    float scale = 1.0,
+    float period_mult = 3.5,
+    float height = 6,
+    float width = 30,
+    float fac = 38
+    )
+{
+    point pos = transform("wold", "object", P) * scale;
+    color col = color(0, 0, 0);
+    col = Lines_3_Pass(col, pos, period_mult, height, width, fac);
+    Output_Color = col;
+}

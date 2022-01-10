@@ -1,0 +1,29 @@
+#define X 0
+#define Y 1
+#define Z 2
+
+#define R 0
+#define G 1
+#define B 2
+
+#define point2(a, b) point(a, b, 0.0)
+#define fract(val) mod(val, 1.0)
+
+shader Template(
+    output color Output_Color = 0,
+    point uv_coords = point(u, v, 0) [[string label = "Projection"]],
+    float global_scale = 1.0,
+    )
+{
+
+    point pos = transform("world", "object", P) * global_scale;
+    // point pos = uv_coords * scale;
+    // pos[0] += translate_noise[0] * translate_noise_pow;
+    // pos[1] += translate_noise[1] * translate_noise_pow;
+    // pos[0] *= scale_x;
+    // pos[1] *= scale_y;
+    color col = color(0, 0, 0);
+
+    
+    Output_Color = col;
+}

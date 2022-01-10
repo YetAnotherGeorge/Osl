@@ -1,0 +1,93 @@
+struct RealRoots
+{
+    float vals[3];
+    int count;
+};
+
+RealRoots RealRootsCreate()
+{
+    RealRoots r;
+    r.count = 0;
+    return r;
+}
+RealRoots RealRootsCreate(float r0)
+{
+    RealRoots r;
+    r.count = 1;
+    r.vals[0] = r0;
+    return r;
+}
+RealRoots RealRootsCreate(float r0, float r1)
+{
+    RealRoots r;
+    r.count = 2;
+    r.vals[0] = r0;
+    r.vals[1] = r1;
+    return r;
+}
+RealRoots RealRootsCreate(float r0, float r1, float r2)
+{
+    RealRoots r;
+    r.count = 3;
+    r.vals[0] = r0;
+    r.vals[1] = r1;
+    r.vals[2] = r2;
+    return r;
+}
+
+RealRoots QuadraticReal(float a, float b, float c)
+{
+    float a1 = b / a;
+    float a0 = c / a;
+
+    float delta = a1 * a1 - 4 * a0;
+    float a1_half_neg = -a1 / 2;
+    if(delta > 0)
+    {
+        float delta_d2a = sqrt(delta) / (2 * a);
+        return RealRootsCreate(a1_half_neg + delta_d2a, a1_half_neg + delta_d2a);
+    }
+    else if(delta < 0)
+        return RealRootsCreate();
+    return RealRootsCreate(a1_half_neg);
+}
+float QuadraticRealCount(float a, float b, float c)
+{
+    float a1 = b / a;
+    float a0 = c / a;
+
+    float delta = a1 * a1 - 4 * a0;
+    float a1_half_neg = -a1 / 2;
+    if(delta > 0)
+        return 1.0;
+    else if(abs(delta) < 0.00001)
+        return 0.5;
+    return 0.0;
+}
+
+//float debug_x_start = 0.0, float debug_y_start = 0.0, float debug_x_end = 0.0, float debug_y_end = 0.0
+//col = DebugPass(col, pos, debug_x_start, debug_x_end, debug_y_start, debug_y_end);
+color DebugPass(color c, point p, float x_start, float x_end, float y_start, float y_end)
+{
+    float fac_a = 0.9;
+    float fac_b = 1.0 - fac_a;
+    if(x_start <= p[0] && p[0] <= x_end && y_start <= p[1] && p[1] <= y_end)
+    {
+        return c;
+    }
+    return color(c[0] * fac_a + fac_b, c[1] * c[1] * fac_a + fac_b, c[2] * c[2] * c[2] * fac_a + fac_b);
+}
+
+shader Test(
+    output color Output_Color = 0,
+    float scale = 1.0
+    )
+{
+    //point pos = transform("wold", "object", P) * scale;
+    point pos = P * scale;
+    color col = color(0, 0, 0);
+
+    float rcol = QuadraticRealCount(pos[0], pos[1], pos[2]);
+    col = color(rcol, rcol, rcol);
+    Output_Color = col;
+}

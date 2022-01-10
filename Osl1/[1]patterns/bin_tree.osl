@@ -1,0 +1,97 @@
+float Dist2D(point a, point b)
+{
+    return sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) );
+}
+float Dist2D(point a, float x, float y)
+{
+    return sqrt((a[0] - x) * (a[0] - x) + (a[1] - y) * (a[1] - y) );
+}
+
+float DistLine2D(point p, point P1, point P2)
+{
+    float delta_x = P2[0] - P1[0];
+    if(abs(delta_x) < 0.0001)
+        return abs(p[0] - P1[0]);
+    float delta_y = P2[1] - P1[1];
+
+    float tf = abs( delta_x * (P1[1] - p[1]) - (P1[0] - p[0]) * delta_y );
+    tf = tf / sqrt(delta_x * delta_x + delta_y * delta_y);
+    return tf;
+}
+
+//deg is around[2]
+void RotatePoint2D(point p, point rotate_data)
+{
+    float xc = p[0] - rotate_data[0];
+    float yc = p[1] - rotate_data[1];
+    float alpha = atan( yc / xc );
+
+    if(xc > 0 && yc < 0)
+        alpha = 2 * M_PI + alpha;
+    else if(xc < 0)
+        alpha = M_PI + alpha;
+
+    alpha += rotate_data[2];
+    float r = Dist2D(p, rotate_data);
+    p[0] = rotate_data[0] + cos(alpha) * r;
+    p[1] = rotate_data[1] + sin(alpha) * r;
+}
+shader BinTree(
+    output color Output_Color = 0,
+    point uv_coords = point(u, v, 0) [[string label = "Projection"]],
+    point rotate_data = point(0, 0, 0),
+
+    color translate_noise = color(0, 0, 0),
+    float translate_noise_pow = 0.0,
+    float scale = 1.0,
+
+    float x_start = 0,
+    float x_end = 0,
+    float y_start = 0,
+    float y_end = 0,
+    float width = 0,
+    int layers = 0,
+    float treshold = 0.5
+    )
+{
+    //point pos = transform("wold", "object", P) * scale;
+    point pos = uv_coords * scale;
+    if(rotate_data[2] > 0)
+        RotatePoint2D(pos, rotate_data);
+
+    pos[0] += translate_noise[0] * translate_noise_pow;
+    pos[1] += translate_noise[1] * translate_noise_pow;
+
+    if(x_start > pos[0] || pos[0] > x_end || y_start > pos[1] || pos[1] > y_end)
+    {
+        Output_Color = color(0.2);
+        return;
+    }
+    
+    point pt = point(pos[0] - x_start, pos[1] - y_start, 0.0); //position translated
+    float x1 = x_end - x_start;
+    float y1 = y_end - y_start;
+
+    float layer_height = y1 / (float)layers;
+    int layer = (int)(pt[1] / layer_height);
+
+    float x2l = x1 / pow(2, layer); //x1 / (2 ^ layer)
+    int quad = (int)( (pt[0] * 2.0) / x2l );
+
+    point top = point( x2l/ 4.0 + quad * (x2l / 2.0), 
+        (layer + 1) * layer_height, 0.0);
+    point bottom = point(floor(quad / 2.0) * x2l + x2l / 2.0, 
+        layer * layer_height, 0.0);
+    
+    float dist = DistLine2D( pt, top, bottom);
+    float n = noise("hash", top + bottom);
+
+    float nw = width / 100;
+    if(dist < nw && n > treshold)
+    {
+        dist = 1.0 - dist / nw;
+        Output_Color = color(dist);
+        return;
+    }
+    Output_Color = color(0);
+}

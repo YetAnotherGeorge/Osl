@@ -1,0 +1,114 @@
+//color op
+color MixCol(color a, float fac_a, color b)
+{
+    float fac_b = 1.0 - fac_a;
+    color result = color(a[0] * fac_a + b[0] * fac_b,
+        a[1] * fac_a + b[1] * fac_b,
+        a[2] * fac_a + b[2] * fac_b);
+    return result;
+}
+
+//display
+color Circle2D(color c, point p, float center_x, float center_y, float rad)
+{
+    float dist = Dist2D(p, center_x, center_y);
+    if(dist <= rad)
+    {
+        dist /= rad;
+        return color(dist, dist, dist);
+    }
+    return c;
+}
+color Circle2D(color c, point p, point center, float rad)
+{
+    float dist = Dist2D(center, p);
+    if(dist <= rad)
+    {
+        dist /= rad;
+        return color(dist, dist, dist);
+    }
+    return c;
+}
+color CircleEmpty2D(color c, point p, point center, float rad, float width)
+{
+    float dist = abs(Dist2D(center, p) - rad);
+    if(dist < width)
+    {
+        dist /= width;
+        return color(dist, dist, dist);
+    }
+    return c;
+}
+//p[0] = x, p[1] = y, p[2] = radius
+color DebugPass2D(color c, point p, point data)
+{
+    float dist = Dist2D(p, data[0], data[1]);
+    if(dist < data[2])
+    {
+        float dist_n = dist / data[2];
+        float r = c[0] * c[0] * c[0] * dist_n;
+        float g = c[1] * c[2] * dist_n; 
+        float b = noise(p[0] * dist, p[1] * dist) * dist_n;        
+        
+        return color(r, g, b);
+    }
+    return c;
+}
+
+
+float DgridEdge2D(point pos, float block_size, float padding, float width)
+{
+    point center = point(floor(pos[0] / block_size) * block_size + block_size / 2, floor(pos[1] / block_size) * block_size + block_size / 2, 0.0);
+    float d_edge = abs(block_size/2.0 - padding - Dist2D(pos, center));
+    if(d_edge < width)
+        return 1.0 - d_edge / width;
+    return 0.0;
+}
+
+//big circle radius, small circle radius
+float Dgrid2D_old(point pos, int debug_true, int max_iterations, float block_size, float sc_rad, float noise_scale, float magnitude, float min_move)
+{
+    //data:         block_size|sc_rad|min_move
+    //data_noise:   noise_scale|magnitude
+    float bc_rad = block_size / 2.0;
+    point center = point(floor(pos[0] / block_size) * block_size + bc_rad, floor(pos[1] / block_size) * block_size + bc_rad, 0.0);
+
+    if(debug_true == 1 && abs(Dist2D(center, pos) - bc_rad + block_size * 0.05) < bc_rad * 0.01)
+       return 1.0;
+    
+    float max_move = bc_rad - sc_rad;
+    float move = max_move * (magnitude - min_move);
+
+    point p = point(center);
+    //move point inside circle
+    float tf = noise_scale * M_PI;
+    int iterations = (int)(noise("hash", center * noise_scale) * max_iterations);
+    for(int i = 0; i < iterations; i++)
+    {
+        float pix = p[0] + M_PI * i;
+        float piy = p[1] + M_PI * i;
+
+        float dist = min_move + noise("cell", pix * tf, piy * tf) * move;
+        if(dist < max_move)
+        {
+            float angle = noise("cell", pix * noise_scale, piy * noise_scale) * M_PI * 2.0;
+            p[0] = center[0] + cos(angle) * dist;
+            p[1] = center[1] + sin(angle) * dist;
+
+            if(Dist2D(p, pos) < sc_rad)
+                return 1.0;
+        }
+        
+    }
+    return 0.0;
+}
+
+//gradient = [0, 100]
+float GradientDots(point pos, float rad_p, float gradient_p, float nscale, float nmag)
+{
+    point np = pos + noise("simplex", pos * nscale + 1237.4261) * nmag;
+    point fract = point( mod(np[X], 1.0) - 0.5, mod(np[Y], 1.0) - 0.5, 0.0);
+    float rad = rad_p / 100.0;
+    float len = length(fract) * 2.0 - rad; //len = [0, 1 * sqrt(2)]
+    return 1.0 - smoothstep(- gradient_p / 100.0, 0, len);
+}

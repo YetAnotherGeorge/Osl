@@ -1,0 +1,34 @@
+#define X 0
+#define Y 1
+#define Z 2
+
+#define R 0
+#define G 1
+#define B 2
+
+#define point2(a, b) point(a, b, 0.0)
+#define fract(val) mod(val, 1.0)
+
+
+shader AddComp(
+    output color OutputColor = 0,
+    int c = 1 [[string label = "Clamp to [0, 1] range"]],
+    int d = 0 [[string label = "Divide by 3"]],
+    int i = 0 [[string label = "Invert"]],
+    color tex = color(0),
+    float multiply = 1.0
+    )
+{
+    float sum = 0.0;
+    for(int i = 0; i < 3; i++)
+        sum += tex[i];
+    sum *= multiply;
+    
+    if(d)
+       sum /= 3.0;
+    if(c)
+        sum = max(0.0, min(1.0, sum));
+    if(i)
+        sum = 1.0 - sum;
+    OutputColor = color(sum);
+}

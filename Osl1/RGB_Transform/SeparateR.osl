@@ -1,0 +1,7 @@
+shader SeparateR(
+    output color Red = 0,
+    color InputColor = 0
+    )
+{
+    Red = color(InputColor[0]);
+}

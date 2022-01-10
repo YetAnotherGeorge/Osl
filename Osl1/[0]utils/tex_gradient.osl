@@ -1,0 +1,23 @@
+#define X 0
+#define Y 1
+#define Z 2
+
+#define R 0
+#define G 1
+#define B 2
+
+#define point2(a, b) point(a, b, 0.0)
+#define fract(val) mod(val, 1.0)
+
+shader Gradient(
+    output color Output_Color = 0,
+    color tex = 0.0,
+    float below_min_val = 1.0,
+    float min_val = 0.3         [[string label = "gradient start percent"]],
+    float max_val = 0.4         [[string label = "gradient end percent"]],
+    float above_max_val = 0.0
+    )
+{    
+    float tf = (tex[R] + tex[G] + tex[B]) / 3.0;
+    Output_Color =  below_min_val + smoothstep(min_val / 100.0, max_val / 100.0, tf) * (above_max_val - below_min_val);
+}

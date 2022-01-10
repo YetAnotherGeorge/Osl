@@ -1,0 +1,26 @@
+float SqareGrid_0(point p, int mode, float gradient_pow)
+{
+    //square size is always 1
+    int xb = (int)floor(p[0]);   //x scale
+    int yb = (int)floor(p[1]);   //y scale
+
+    point mid = point(xb + 0.5, yb + 0.5, 0.0);
+    float d = (distance(p, mid) / (sqrt(0.5))) * gradient_pow;
+
+    if(mode == 0)
+        return (1.0 - d);
+    else if(mode == 1)
+        return abs(d - 1.0);
+}
+
+
+shader SqareGrid_0_Shader(
+    output color Output_Color = 0, 
+    float scale = 1.0,
+    int mode = 0 [[string label = "0 / 1"]],
+    float gradient_pow = 1.01
+    )
+{
+    point pos = transform("wold", "object", P) * scale;
+    Output_Color = SqareGrid_0(pos, mode, gradient_pow);
+}

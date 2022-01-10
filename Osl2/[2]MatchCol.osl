@@ -1,0 +1,35 @@
+#define X 0
+#define Y 1
+#define Z 2
+
+#define R 0
+#define G 1
+#define B 2
+
+#define point2(a, b) point(a, b, 0.0)
+#define fract(val) mod(val, 1.0)
+
+#define DEFCOL color(0.7216, 0.0431, 0.4588)
+
+shader MatchCol(
+    output color OutputColor = 0,
+    color tex = DEFCOL,
+    point match_with = point(0)   [[string label = "Color to match with"]],
+    float epsilon = 0.01          [[string label = "Max difference between colors"]],
+    int invert = 0                [[string laber = "match = true results in white by def", int min = 0, int max = 1]]
+    )
+{
+    float tf = 0.0;
+    for(int i = 0; i < 3; i++)
+        tf += abs(tex[i] - match_with[i]);
+
+    float cf = 0.0;
+        
+    if(tf < epsilon)
+        cf = 1.0 - tf / epsilon;
+
+    if(invert)
+        cf = 1.0 - cf;
+        
+    OutputColor = color(cf);
+}

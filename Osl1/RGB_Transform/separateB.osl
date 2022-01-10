@@ -1,0 +1,7 @@
+shader SeparateB(
+    output color Blue = 0,
+    color InputColor = 0
+    )
+{
+    Blue = color(InputColor[2]);
+}

@@ -1,0 +1,20 @@
+#define X 0
+#define Y 1
+#define Z 2
+
+#define R 0
+#define G 1
+#define B 2
+
+shader TempShader(
+    output color OutputColor = 0,
+    point uv_coords = point(u, v, 0)	[[string label = "Projection"]],
+    float global_scale = 1.0	[[string label = "Scale"]],
+    color col = color(0.5, 0.5, 1.0)	[[string label = "Input Color"]]
+    )
+{
+    point pos = transform("world", "object", P) * global_scale;
+    color c = color(pos[X] * col[R], pos[Y] * col[G], (pos[X] + pos[Y]) * col[B]);
+    c = max(sin(c), 0.0);
+    OutputColor = color(sin(c[R]), cos(c[G] * 10), cos(c[B] * c[R]));
+}

@@ -1,0 +1,25 @@
+#define X 0
+#define Y 1
+#define Z 2
+
+#define R 0
+#define G 1
+#define B 2
+
+#define point2(a, b) point(a, b, 0.0)
+#define fract(val) mod(val, 1.0)
+
+shader ChkRange(
+    output color OutputColor = 0,
+    color col = color(0)                [[string label = "1 if in range"]],
+    point r = point(0.0, 1.0, 0.0)      [[string label = "Range (r[0] < r[1])"]],
+    int comp = 0                        [[string label = "Component id", int min = 0, int max = 3]]
+    )
+{
+    if(r[0] <= col[comp] && col[comp] <= r[1])
+    {
+        OutputColor = color(1.0);
+        return;
+    }
+    OutputColor = color(0.0);
+}

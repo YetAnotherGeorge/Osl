@@ -1,0 +1,33 @@
+#define X 0
+#define Y 1
+#define Z 2
+
+#define R 0
+#define G 1
+#define B 2
+
+#define point2(a, b) point(a, b, 0.0)
+#define fract(val) mod(val, 1.0)
+
+point Rot2D(point pos, point around, float theta)
+    {
+    return point2(  cos(theta) * (pos[X] - around[X]) - sin(theta) * (pos[Y] - around[Y]) + around[X],
+                    sin(theta) * (pos[X] - around[X]) + cos(theta) * (pos[Y] - around[Y]) + around[Y]);
+    }
+//
+#define GRID_SIZE 1.0
+shader Template(
+    output color uv = 0,
+    point uv_coords = point(u, v, 0) [[string label = "Projection"]],
+    float global_scale = 1.0,
+    float angle_increment_deg = 0.01
+    )
+{
+    point pos = uv_coords * global_scale;
+    point bl_corner = point2(floor(pos[X]), floor(pos[Y]));
+    point center = bl_corner + point2(0.5, 0.5);
+    float rot_angle = floor(noise("hash", center) * 10000) * M_PI * (angle_increment_deg / 180.0);
+    point rotated = Rot2D(pos, center, rot_angle);
+
+    uv = rotated;
+}

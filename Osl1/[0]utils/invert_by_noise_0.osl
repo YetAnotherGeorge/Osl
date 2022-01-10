@@ -1,0 +1,29 @@
+#define X 0
+#define Y 1
+#define Z 2
+
+#define R 0
+#define G 1
+#define B 2
+
+#define point2(a, b) point(a, b, 0.0)
+#define fract(val) mod(val, 1.0)
+
+shader InvertByNoise(
+    output color Output_Color = 0,
+    point uv_coords = point(u, v, 0) [[string label = "Projection"]],
+    point inv_data = point(70.0, 2.0, 0.0)  [[string label = "InvData: threshold (p) | gradient | scale"]],
+    color in_tex = color(0)
+    )
+{
+
+    float center = inv_data[0] / 100.0 - 0.5;
+    float delta = inv_data[1] / 100.0;
+    float start = center - delta;
+    float end = center + delta;
+
+    float n = noise("simplex", uv_coords * inv_data[2]) - 0.5;
+    float inv = (smoothstep(start, end, n) - 0.5);
+    color col = 0.5 + in_tex * inv;
+    Output_Color = color(smoothstep(0.0, 1.0, col));
+}

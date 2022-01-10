@@ -1,0 +1,62 @@
+shader node_mandelbrot_zn_zoom(
+        float Zoom = 10.0,
+    vector Vector = P,    
+        float CenterX = 0.0,
+        float CenterY = 0.0,
+    int MaxIterations = 31,
+    int Exponent = 2,
+    float Bailout = 4.0,
+    output vector Transformed = P,
+    output float Fac = 0.0)
+{
+    point p = Vector/(2*Zoom);
+    float s = 0.0;
+    int i = 0;
+    int j = 0;
+    int prevIteration = MaxIterations;
+    float factor = 0.0;
+    float auxiliar = 0.0;
+        
+    // Start Mandelbrot fractal    
+    p[0] += CenterX;
+    p[1] += CenterY;
+
+    // C = pixel    
+    point pa = point(0.0);
+    point pb = point(0.0);
+    point pc = point(0.0);
+    
+    do
+    {
+        // z^j
+        for(j=1; j<Exponent; j++)
+        {
+            pc[0] = pa[0]*pb[0] - pa[1]*pb[1];
+            pc[1] = pa[0]*pb[1] + pa[1]*pb[0];
+            // for next product
+            pb[0] = pc[0];
+            pb[1] = pc[1];
+        }
+        // z^exponent + c
+        pa = pc + p;
+        pb[0] = pa[0];
+        pb[1] = pa[1];
+          
+    i++;
+    if ((prevIteration == MaxIterations) && (sqrt((pa[0]*pa[0]) + (pa[1]*pa[1])) > 2.0))
+    {
+        prevIteration = i + 1;
+    }        
+    } while (i < prevIteration);
+
+    
+    // Colorize
+    //factor = float(i) – (log(log(sqrt((Vector[0]*Vector[0]) + (Vector[1]*Vector[1])))) / log(2.0));
+    factor = float(i);
+    auxiliar = sqrt((pa[0]*pa[0]) + (pa[1]*pa[1]));
+    factor = factor - (log(log(auxiliar))/log(Bailout));
+    factor = factor / float(MaxIterations);    
+  
+    Fac = factor;
+    Transformed = pa;
+}

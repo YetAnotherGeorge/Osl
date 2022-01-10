@@ -1,0 +1,22 @@
+shader ClosestUV_OslProjection (
+    output color Output_Color = 0,
+    color image = color(1),
+    int size_u = 0,
+    int size_v = 0,
+    float border_size = 0,
+    float div_by = 1000)
+{
+    float iu = 1.0 / (float)size_u;
+    float iv = 1.0 / (float)size_v;
+
+    float u_edge = floor( u / iu ) * iu;
+    float v_edge = floor( v / iv ) * iv;
+
+    float dbs = border_size / div_by;
+    if(u - u_edge < dbs || v - v_edge < dbs)
+    {
+        Output_Color = color(0);
+        return;
+    }
+    Output_Color = image;
+}

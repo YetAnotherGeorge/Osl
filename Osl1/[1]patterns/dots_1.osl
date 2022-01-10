@@ -1,0 +1,80 @@
+#define X 0
+#define Y 1
+#define Z 2
+
+#define R 0
+#define G 1
+#define B 2
+
+#define fract(val) mod(val, 1.0)
+
+float DDot(point dec_base, point offset, point at, float rad_min, float rad_delta, float move_max, float nscale, float treshold, float out_radius)
+    {
+    point dec_current = dec_base + offset;
+
+    float n = noise("usimplex", dec_current[X] * nscale, dec_current[Y] * nscale);
+
+    if(fract(n * 74.1217) > treshold)
+        return 1000.0;
+    
+    float rad = rad_min + rad_delta * n;
+    float move = (1.5 - rad) * fract(n * 73.8768) * move_max;
+    float move_angle = 2 * M_PI * fract(n * 99.5284);
+
+    point fr = point(offset[X] + 0.5 + cos(move_angle) * move, 
+        offset[Y] + 0.5 + sin(move_angle) * move, 0.0);
+    
+    out_radius = rad;
+    return distance(fr, at);
+    }
+shader Dots(
+    output color Output_Color = 0,
+    point uv_coords = point(u, v, 0) [[string label = "Projection"]],
+    float distort_scale = 0.0,
+    float distort_magnitude = 0.0,
+    float global_scale = 1.0,
+
+    float r_min_p = 10.0            [[string label = "dot min radius percent"]],
+    float r_max_p = 20.0            [[string label = "dot max radius percent"]],
+    float treshold_p = 100          [[string label = "percentage of dots to keep"]],
+    float gradient_p = 10.0         [[string label = "gradient percent of radius"]],    
+    float move_max_p = 100.0        [[string label = "max move percent [0 - 100]"]],
+    float noise_scale = 0.0         [[string label = "noise scale"]]
+    )
+{
+    point pos = point(uv_coords[X] * global_scale, uv_coords[Y] * global_scale, 0.0);
+    pos+= noise("simplex", pos * distort_scale) * distort_magnitude;
+    pos[Z] = 0.0;
+
+    float rad_min = r_min_p / 200.0;
+    float rad_delta = (r_max_p - r_min_p) / 200.0;
+    float move_max = move_max_p / 100.0;
+    float treshold = treshold_p / 100.0;
+
+    point dec = point(floor(pos[X]), floor(pos[Y]), 0.0);
+    point fr = point(fract(pos[X]), fract(pos[Y]), 0.0);
+
+    float min_d = 20, min_d_r;
+    for(int i = -1; i < 2; i++)
+    {
+        for(int j = -1; j < 2; j++)
+        {
+            float tr;
+            float tf = DDot(dec, point(i, j, 0), fr, rad_min, rad_delta, move_max, noise_scale, treshold, tr);
+            if(tf < min_d)
+            {
+                min_d = tf;
+                min_d_r = tr;
+            }
+        }
+    }
+
+    //gradient and coloring:
+    if(min_d < min_d_r)
+    {
+        min_d = 1.0 - min_d / min_d_r;
+        Output_Color = color(smoothstep(0.0, gradient_p / 100.0, min_d));
+        return;
+    }
+    
+}

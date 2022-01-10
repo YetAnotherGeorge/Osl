@@ -1,0 +1,130 @@
+float Dist2D(point a, point b)
+{
+    return sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) );
+}
+float Dist2D(point a, float x, float y)
+{
+    return sqrt((a[0] - x) * (a[0] - x) + (a[1] - y) * (a[1] - y) );
+}
+
+//magnitude is 0 to 100
+void NoiseMove(point points[], float noise_scale, float magnitude, float available_rad)
+{
+    float max_move = available_rad * magnitude / 100.0;
+    for(int i = 0; i < arraylength(points); i++)
+    {
+        float angle = noise("cell", points[i] * noise_scale);
+        float dist  = max_move * noise("cell", points[i] * noise_scale + M_PI);
+
+        points[i][0] = points[i][0] + cos(angle) * dist;
+        points[i][1] = points[i][1] + sin(angle) * dist;
+    }
+}
+
+float MinDist2D(point points[], point to)
+{
+    float md = sqrt((points[0][0] - to[0]) * (points[0][0] - to[0]) + (points[0][1] - to[1]) * (points[0][1] - to[1]));
+    for(int i = 1; i < arraylength(points); i++)
+    {
+        float td = sqrt((points[i][0] - to[0]) * (points[i][0] - to[0]) + (points[i][1] - to[1]) * (points[i][1] - to[1]));
+        if(td < md)
+            md = td;
+    }
+    return md;
+}
+
+
+//data:         block size  | sc rad(dot radius) | min move percentage
+//data_noise:   noise scale | magnitude percentage
+float Dgrid2D(point pos, int debug_true, int max_iterations, point data, point data_noise)
+{
+
+    //data:         block size  | sc rad(dot radius) | min move percentage
+    //data_noise:   noise scale | magnitude percentage
+    float min_move = data[2] / 100.0, magnitude = data_noise[1] / 100;
+
+    float bc_rad = data[0] / 2.0;
+    point center = point(floor(pos[0] / data[0]) * data[0] + bc_rad, floor(pos[1] / data[0]) * data[0] + bc_rad, 0.0);
+
+    if(debug_true == 1 && abs(Dist2D(center, pos) - bc_rad + data[0] * 0.05) < bc_rad * 0.01)
+       return 1.0;
+    
+    float max_move = bc_rad - data[1];
+    float move = max_move * (magnitude - min_move);
+
+    point p = point(center);
+    //move point inside circle
+    float tf = data_noise[0] * M_PI;
+    int iterations = (int)(noise("hash", center * data_noise[0]) * max_iterations);
+    for(int i = 0; i < iterations; i++)
+    {
+        float pix = p[0] + M_PI * i;
+        float piy = p[1] + M_PI * i;
+
+        float dist = min_move + noise("cell", pix * tf, piy * tf) * move;
+        if(dist < max_move)
+        {
+            float angle = noise("cell", pix * data_noise[0], piy * data_noise[0]) * M_PI * 2.0;
+            p[0] = center[0] + cos(angle) * dist;
+            p[1] = center[1] + sin(angle) * dist;
+
+            if(Dist2D(p, pos) < data[1])
+                return 1.0;
+        }
+        
+    }
+    return 0.0;
+}
+
+//data:         block size  | sc rad(dot radius) | min move percentage
+//data_noise:   noise scale | magnitude percentage
+float Dgrid2D_NoDebug(point pos, int max_iterations, point data, point data_noise)
+{
+    //data:         block size  | sc rad(dot radius) | min move percentage
+    //data_noise:   noise scale | magnitude percentage
+    float min_move = data[2] / 100.0, magnitude = data_noise[1] / 100;
+
+    float bc_rad = data[0] / 2.0;
+    point center = point(floor(pos[0] / data[0]) * data[0] + bc_rad, floor(pos[1] / data[0]) * data[0] + bc_rad, 0.0);
+    
+    float max_move = bc_rad - data[1];
+    float move = max_move * (magnitude - min_move);
+
+    point p = point(center);
+    //move point inside circle
+    float tf = data_noise[0] * M_PI, tfpi = 0;
+    int iterations = (int)(noise("hash", center * data_noise[0]) * max_iterations);
+    for(int i = 0; i < iterations; i++)
+    {
+        float pix = p[0] + M_PI * i;
+        float piy = p[1] + M_PI * i;
+
+        float dist = min_move + noise("cell", pix * tf, piy * tf) * move;
+        if(dist < max_move)
+        {
+            float angle = noise("cell", pix * data_noise[0], piy * data_noise[0]) * M_PI * 2.0;
+            p[0] = center[0] + cos(angle) * dist;
+            p[1] = center[1] + sin(angle) * dist;
+
+            if(Dist2D(p, pos) < data[1])
+                return 1.0;
+        }
+        
+    }
+    return 0.0;
+}
+shader TrigDotGrid(
+    output color Color = color(0),
+    point uv_coords = point(u, v, 0)    [[string label = "Projection"]],
+    float scale = 1.0                   [[string label = "Global Scale"]],
+    
+    int g_debug = 0                     [[string label = "Debug Grid"]],
+    int g_max_iterations = 2            [[string label = "Max Iterations"]],
+    point g_data = point(1.48, 0.14, 0.6)    [[string label= "Block Size | Dot Radius | Min Move P"]],
+    point g_n_dat = point(40.763, 112.6, 0.0)[[string label = "Noise Scale | Magnitude Percentage"]]
+
+)
+{
+    point pos = transform("world", "object", P) * scale;
+    Color = color(Dgrid2D_NoDebug(pos, g_max_iterations, g_data, g_n_dat));
+}

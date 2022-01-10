@@ -1,0 +1,41 @@
+#define X 0
+#define Y 1
+#define Z 2
+
+#define R 0
+#define G 1
+#define B 2
+
+#define point2(a, b) point(a, b, 0.0)
+#define fract(val) mod(val, 1.0)
+
+float angle3(point a, point b)
+{
+    return acos(dot(a, b) / (length(a) * length(b)));
+}
+float angle3_normalized(point a, point b)
+{
+    return acos(dot(a,b));
+}
+shader LensRing(
+    output color OutputColor = 0,
+    color prev = color(0.0),
+    color dot_col = color(1.0),
+    point axis = point(0),
+    float angle = 0,
+    float size = 0.1
+    )
+{
+    point axisN = normalize(axis);
+    point IN = rotate(I, angle, axisN);
+    float a = angle3(IN, N);
+
+    if(a <= size)
+    {
+        a = 1.0 - a / size;
+        OutputColor = min(color(1.0), prev + a * dot_col);
+        return;
+    }
+    
+    OutputColor = prev;
+}

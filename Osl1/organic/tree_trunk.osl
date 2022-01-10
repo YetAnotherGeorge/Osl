@@ -1,0 +1,80 @@
+point NoiseTranslate_2D(point p, float noise_scale, float noise_pow)
+{
+    float a = noise("usimplex", p * noise_scale, 0) * M_PI * 2;
+    float d = noise("usimplex", p * noise_scale, 100) * noise_pow;
+
+    point result = point(p[0], p[1], p[2]);
+    result[0] += cos(a) * d;
+    result[1] += sin(a) * d;
+    return result;
+}
+
+//param[0] = scale
+//param[1] = max dist
+//param[2] = max angle
+void NoiseTranslate_2D(point p, point param, point param_2, float mix_fac)
+{
+    float a = noise("usimplex", p * param[0], 0) * M_PI * param[2];
+    float d = noise("uperlin", p * param[0], 100) * param[1];
+
+    float aa = noise("usimplex", p * param_2[0], 0) * M_PI * param_2[2];
+    float dd = noise("uperlin", p * param_2[0], 100) * param_2[1];
+
+    float t = noise("usimplex", p * param[0], 0);
+    t = pow(t, mix_fac);
+
+    a = a * t + aa * (1 - t);
+    d = d * t + dd * (1 - t);
+
+    float delta_x = cos(a) * d;
+    float delta_y = sin(a) * d;
+
+    p[0] += delta_x;
+    p[1] += delta_y;
+}
+float Dist_01(point a, point b)
+{
+    return sqrt( (a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) );
+}
+
+//uv_circle_n[2] is radius 
+//for fac compare if output is larger than 0.05
+shader TreeRings(
+    output color Output_Color = 0,
+    point uv_coords = point(u, v, 0) [[string label = "Projection"]],
+
+    point uv_circle = point(0, 0, 1),
+    int circular_cuts = 2,
+    float noise_scale_outside = 7.23,
+    float noise_impact_outside = 0.02,
+    point noise_inside_a = point(0, 0, 0),
+    point noise_inside_b = point(0, 0, 0),
+    float noise_inside_mix = 0
+
+    )
+{
+
+    point pos_uv = NoiseTranslate_2D(uv_coords, noise_scale_outside, noise_impact_outside);
+    color col = color(0, 0, 0);
+
+    float d = Dist_01(pos_uv, uv_circle);
+    if(d < uv_circle[2])
+    {
+        NoiseTranslate_2D(pos_uv, noise_inside_a / 100.0, noise_inside_b / 100.0, noise_inside_mix);
+        d = Dist_01(pos_uv, uv_circle); 
+        d = d / uv_circle[2];
+        float increment = 1 / (float)circular_cuts, at = 0.0;
+        
+        int cc = (int)(d / increment) + 1;//closest circle
+        float dist = abs(cc * increment - d);
+
+        d = (dist / increment) * 0.995 + 0.05;
+        Output_Color = color(d, d, d);
+        return;
+    }
+    else
+    {
+        Output_Color = color(0, 0, 0);
+        return;
+    }
+}

@@ -1,0 +1,141 @@
+#define X 0
+#define Y 1
+#define Z 2
+
+#define R 0
+#define G 1
+#define B 2
+
+float sdTriangle( point p, point p0, point p1, point p2 )
+    {
+    point e0 = p1 - p0;
+    point e1 = p2 - p1;
+    point e2 = p0 - p2;
+
+    point v0 = p - p0;
+    point v1 = p - p1;
+    point v2 = p - p2;
+
+    point pq0 = v0 - e0*clamp( dot(v0,e0)/dot(e0,e0), 0.0, 1.0 );
+    point pq1 = v1 - e1*clamp( dot(v1,e1)/dot(e1,e1), 0.0, 1.0 );
+    point pq2 = v2 - e2*clamp( dot(v2,e2)/dot(e2,e2), 0.0, 1.0 );
+    
+    float s = e0[0]*e2[1] - e0[1]*e2[0];
+    point d = min( min( point( dot( pq0, pq0 ), s*(v0[0]*e0[1]-v0[1]*e0[0]), 0.0 ),
+                    point( dot( pq1, pq1 ), s*(v1[0]*e1[1]-v1[1]*e1[0]), 0.0 )),
+                    point( dot( pq2, pq2 ), s*(v2[0]*e2[1]-v2[1]*e2[0]), 0.0 ));
+
+    return -sqrt(d[0])*sign(d[1]);
+    }
+float dTriangle( point p, point p0, point p1, point p2 )
+    {
+    point e0 = p1 - p0;
+    point e1 = p2 - p1;
+    point e2 = p0 - p2;
+
+    point v0 = p - p0;
+    point v1 = p - p1;
+    point v2 = p - p2;
+
+    point pq0 = v0 - e0*clamp( dot(v0,e0)/dot(e0,e0), 0.0, 1.0 );
+    point pq1 = v1 - e1*clamp( dot(v1,e1)/dot(e1,e1), 0.0, 1.0 );
+    point pq2 = v2 - e2*clamp( dot(v2,e2)/dot(e2,e2), 0.0, 1.0 );
+    
+    float s = e0[0]*e2[1] - e0[1]*e2[0];
+    point d = min( min( point( dot( pq0, pq0 ), s*(v0[0]*e0[1]-v0[1]*e0[0]), 0.0 ),
+                    point( dot( pq1, pq1 ), s*(v1[0]*e1[1]-v1[1]*e1[0]), 0.0 )),
+                    point( dot( pq2, pq2 ), s*(v2[0]*e2[1]-v2[1]*e2[0]), 0.0 ));
+
+    return sqrt(d[0]);
+    }
+//end of distance functions
+
+//end of structs
+shader Triangles(
+    output color Output_Color = 0,
+    point uv_coords = point(u, v, 0)        [[string label = "Projection"]],
+    float global_scale = 8.4                [[string label = "Global Scale"]],
+    
+
+    float block_size = 1.0,
+    float point_min_r = 11.9,
+    float point_max_r = 76.6,
+    float warp_rad_percent = 34.5,
+    float warp_pow = 1.1,
+    //coloring:
+    float width = 0.03,
+    float width_gradient_percent = 89.0,
+
+    float animate = 0.0,
+    float animate_amplitude = 12.0,
+    float animate_treshold = 0.53
+    )
+{
+    //setup
+    point pos = uv_coords * global_scale;
+    color col = color(0.0, 0.0, 0.0);
+
+    //local coords are in range (-0.5, -0.5) to (0.5, 0.5)
+    point scaled = point(pos[X] / block_size, pos[Y] / block_size, 0.0);
+    point fract = mod(scaled, 1.0) - point(0.5, 0.5, 0.0);
+    point id = floor(scaled);
+
+    point cellp[3];
+    float radiuses[3];
+    int closest_to = 0;
+    float min_d = 1.0;
+
+    //set cellp, radiuses, closest_to
+    {
+        float max_r = (point_max_r * block_size) / 200.0;
+        float min_r = (point_min_r * block_size) / 200.0;
+
+        float da = animate / 100.0;
+        float ma = sin((da + cos(id[X] + id[Y])) * animate_amplitude) / 2.0 + 0.5;
+
+        for(int i = 0; i < 3; i++)
+        {
+            float ifloat = i * 4.423;
+
+            float random = noise("usimplex", point(id[X], id[Y], floor(animate / animate_amplitude) * animate_amplitude * 20.32));
+            if(random > animate_treshold)
+                ifloat += random;
+            
+            point n = noise("hash", id * 421.4923 + ifloat);
+            n[0] *= ma;
+            float r = min_r * n[0] + (1.0 - n[0]) * max_r;
+            float angle = n[1] * M_PI * 2.0;
+
+            cellp[i] = point(cos(angle) * r, sin(angle) * r, 0.0);
+            radiuses[i] = r;
+
+            float td = distance(fract, cellp[i]);
+            if(td < min_d)
+            {
+                closest_to = i;
+                min_d = td;
+            }
+        }
+    }
+
+    //warp space
+    {
+        float tr = (radiuses[closest_to] * warp_rad_percent) / 100.0;
+        if(min_d < tr)
+        {
+            float t = min_d / tr;
+            t = pow(t, warp_pow);
+            fract = t * fract + (1.0 - t) * cellp[closest_to];
+        }
+    }
+
+    float d = dTriangle(fract, cellp[0], cellp[1], cellp[2]);
+    if(d < width)
+    {
+        float t = width_gradient_percent / 100.0;
+        d /= width;
+        Output_Color = color(1.0 - smoothstep(1.0 - t, 1.0, d));
+        return;
+    }
+    Output_Color = color(0.0 );
+}

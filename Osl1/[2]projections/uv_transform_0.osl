@@ -1,0 +1,64 @@
+#define X 0
+#define Y 1
+#define Z 2
+
+#define R 0
+#define G 1
+#define B 2
+
+#define point2(a, b) point(a, b, 0.0)
+#define fract(val) mod(val, 1.0)
+
+point Rot2D(point pos, point around, float theta)
+{
+    return point2(  cos(theta) * (pos[X] - around[X]) - sin(theta) * (pos[Y] - around[Y]) + around[X],
+                    sin(theta) * (pos[X] - around[X]) + cos(theta) * (pos[Y] - around[Y]) + around[Y]);
+}
+shader UV_Move_Rot_N (
+    output point uv = 0,
+    point uv_proj = point(u, v, 0.0),
+    point translate = point(0.0, 0.0, 0.0),
+    point rot2d = point(0.0, 0.0, 0.0)          [[string label = "Rotate: x | y | ammount(deg)"]],
+    float scale = 1.0,
+    point n0 = point(0, 0, 100)                 [[string label = "Noise Scale XY: scale p | mag p | y mult p"]],
+    point n1 = point(0, 0, 0)                   [[string label = "Noise Move: scale | magnitude"]],
+    point n2 = point(0, 0, 0)                   [[string label = "Noise Rot: scale | rot center mag | rot mag"]]
+)
+{
+    point pos = uv_proj * scale + translate;
+
+    //apply scale noise
+    if(n0[1] > 0.0001)
+    {
+        float ts = n0[0] / 100.0;
+        float tm = n0[1] / 100.0;
+        pos[X] = pos[X] * (1.0 + noise("usimplex", pos[X] * ts, 4.899) * tm);
+        float tf = (n0[2] / 100.0);
+        ts *= tf;
+        tm *= tf;
+        pos[Y] = pos[Y] * (1.0 + noise("usimplex", pos[Y] * ts, 618.203) * tm);
+    }
+
+    //apply translate noise
+    if(n1[1] > 0.0001)
+    {
+        vector mn = (noise("usimplex", pos * n1[0]) - 0.5) * n1[1];
+        pos[X] += mn[0];
+        pos[Z] += mn[1];
+    }
+    
+    //apply rotate noise
+    if(n2[2] > 0.0001)
+    {
+        vector rn = (noise("usimplex", pos * n2[0]) - 0.5);
+        float angle = rn[0] * 2 * M_PI;
+        float magnitude = rn[1] * n2[1];
+
+        point rotaround = point2(pos[X] + cos(angle) * magnitude, pos[Y] + sin(angle) * magnitude);
+        pos = Rot2D(pos, rotaround, rn[2] * n2[2]);
+    }
+    
+
+    
+    uv = Rot2D(pos, rot2d, rot2d[2] * M_PI / 180.0);
+}

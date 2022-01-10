@@ -1,0 +1,32 @@
+#define X 0
+#define Y 1
+#define Z 2
+
+#define R 0
+#define G 1
+#define B 2
+
+#define point2(a, b) point(a, b, 0.0)
+#define fract(val) mod(val, 1.0)
+
+#define GRID_SIZE 1.0
+shader Template(
+    output color Output_Color = 0,
+    point uv_coords = point(u, v, 0) [[string label = "Projection"]],
+    float global_scale = 1.0,
+    color base_layer = color(0),
+    color top_layer = color(0),
+    float edge_start = 0.0,
+    float edge_end = 0.1,
+    float roundness = 1.05
+    )
+{
+    point pos = uv_coords * global_scale;
+    point bl = point2(floor(pos[X]), floor(pos[Y]));
+
+    point pos_local = pos - bl - point2(0.5, 0.5);
+    float d_edge = 0.5 - max(max(abs(pos_local[X]), abs(pos_local[Y])), (length(pos_local) / sqrt(2.0)) * roundness);
+    d_edge = smoothstep(edge_start, edge_end, d_edge);
+    
+    Output_Color = base_layer * (1.0 - d_edge) + top_layer * d_edge;
+}

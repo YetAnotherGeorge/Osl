@@ -1,0 +1,390 @@
+#define X 0
+#define Y 1
+#define Z 2
+
+#define R 0
+#define G 1
+#define B 2
+
+#define grid_c_count 3
+//end of defines
+
+float DistLine2D(point p, point p0, point p1)
+    {
+    vector line_dir = p0 - p1;
+    return abs( dot(p0 - p, normalize(vector(line_dir[1], -line_dir[0], 0.0))) );
+    }
+float DistLineSegment2D(point p, point p0, point p1)
+    {
+    vector dir_p = p - p0;
+    vector dir = p1 - p0;
+    float t = clamp(dot(dir_p, dir) / dot(dir, dir), 0.0, 1.0);
+    return length(dir_p - dir * t);
+    }
+float sdTriangle( point p, point p0, point p1, point p2 )
+    {
+    point e0 = p1 - p0;
+    point e1 = p2 - p1;
+    point e2 = p0 - p2;
+
+    point v0 = p - p0;
+    point v1 = p - p1;
+    point v2 = p - p2;
+
+    point pq0 = v0 - e0*clamp( dot(v0,e0)/dot(e0,e0), 0.0, 1.0 );
+    point pq1 = v1 - e1*clamp( dot(v1,e1)/dot(e1,e1), 0.0, 1.0 );
+    point pq2 = v2 - e2*clamp( dot(v2,e2)/dot(e2,e2), 0.0, 1.0 );
+    
+    float s = e0[0]*e2[1] - e0[1]*e2[0];
+    point d = min( min( point( dot( pq0, pq0 ), s*(v0[0]*e0[1]-v0[1]*e0[0]), 0.0 ),
+                    point( dot( pq1, pq1 ), s*(v1[0]*e1[1]-v1[1]*e1[0]), 0.0 )),
+                    point( dot( pq2, pq2 ), s*(v2[0]*e2[1]-v2[1]*e2[0]), 0.0 ));
+
+    return -sqrt(d[0])*sign(d[1]);
+    }
+float dTriangle( point p, point p0, point p1, point p2 )
+    {
+    point e0 = p1 - p0;
+    point e1 = p2 - p1;
+    point e2 = p0 - p2;
+
+    point v0 = p - p0;
+    point v1 = p - p1;
+    point v2 = p - p2;
+
+    point pq0 = v0 - e0*clamp( dot(v0,e0)/dot(e0,e0), 0.0, 1.0 );
+    point pq1 = v1 - e1*clamp( dot(v1,e1)/dot(e1,e1), 0.0, 1.0 );
+    point pq2 = v2 - e2*clamp( dot(v2,e2)/dot(e2,e2), 0.0, 1.0 );
+    
+    float s = e0[0]*e2[1] - e0[1]*e2[0];
+    point d = min( min( point( dot( pq0, pq0 ), s*(v0[0]*e0[1]-v0[1]*e0[0]), 0.0 ),
+                    point( dot( pq1, pq1 ), s*(v1[0]*e1[1]-v1[1]*e1[0]), 0.0 )),
+                    point( dot( pq2, pq2 ), s*(v2[0]*e2[1]-v2[1]*e2[0]), 0.0 ));
+
+    return sqrt(d[0]);
+    }
+//end of distance functions
+
+struct Cell
+    {
+    point dec, fract;
+    float p_d_min, p_d_delta;
+    float p_w_min, p_w_delta;
+
+    point cc[grid_c_count]; //circle center (cc[2] = 0.0): initialized as a random point with coord between -0.5 and 0.5
+    float cw[grid_c_count]; //circle warps: initialized as a random value between 0 and 0.5, max radius
+    int ce[grid_c_count];   //circle exists = 1, 0 otherwise
+
+    int c_b, c_t, c_l, c_r;
+    };
+//Cell_c:   points will be between (-0.5, -0.5) - (0.5, 0.5), radius[i] <= 1.0;
+//          cc[2] is allways 0.0
+//p_d_min and p_d_delta -> [0.0, 0.5]
+Cell Cell_c(point pos, float p_d_min, float p_d_delta, float p_w_min, float p_w_delta) //between 0.0 and 0.5
+    {
+    Cell cell;
+    cell.p_d_min = p_d_min;
+    cell.p_d_delta = p_d_delta;
+    cell.p_w_min = p_w_min;
+    cell.p_w_delta = p_w_delta;
+    
+    cell.dec = point(floor(pos[X]), floor(pos[Y]), 0.0);
+    cell.fract = point(mod(pos[X], 1.0) - 0.5, mod(pos[Y], 1.0) - 0.5, 0.0);
+
+    cell.c_t = 0;
+    cell.c_b = 0;
+    cell.c_l = 0;
+    cell.c_r = 0;
+
+    //create circles
+    float ai = (2 * M_PI) / 3.0;
+    for(int i = 0; i < grid_c_count; i++)
+    {
+        cell.ce[i] = 1;
+
+        float ifloat = float(i);
+        point n = noise("hash", cell.dec, ifloat);
+
+        float nscale = 1120.0;
+        float angle = ai * ifloat + mod(sin((cell.dec[X] * 20.31 + ifloat + cell.dec[Y]) * 4523.242) * 943.4792, 1.5) * M_PI;
+        float r = p_d_min + n[1] * p_d_delta;
+        
+        cell.cc[i] = point(cos(angle) * r, sin(angle) * r, 0.0);
+        cell.cw[i] = p_w_min + n[2] * p_w_delta;
+    }
+
+    return cell;
+    }
+//
+
+//links start
+void Cell_SetAll(Cell cell)
+    {
+    for(int i = 1; i < grid_c_count; i++)
+    {
+        if(cell.cc[cell.c_b][Y] > cell.cc[i][Y])
+        {
+            cell.c_b = i;
+        }
+        if(cell.cc[cell.c_t][Y] < cell.cc[i][Y])
+        {
+            cell.c_t = i;
+        }
+        if(cell.cc[cell.c_r][X] < cell.cc[i][X])
+        {
+            cell.c_r = i;
+        }
+        if(cell.cc[cell.c_l][X] > cell.cc[i][X])
+        {
+            cell.c_l = i;
+        }   
+    }
+    }
+void Cell_SetBottom(Cell cell)
+    {
+    //smallest y
+    for(int i = 1; i < grid_c_count; i++)
+    {
+        if(cell.cc[cell.c_b][Y] > cell.cc[i][Y])
+        {
+            cell.c_b = i;
+        }
+    }
+    }
+void Cell_SetTop(Cell cell)
+    {
+    //biggest y
+    for(int i = 1; i < grid_c_count; i++)
+    {
+        if(cell.cc[cell.c_t][Y] < cell.cc[i][Y])
+        {
+            cell.c_t = i;
+        }
+    }
+    }
+void Cell_SetRight(Cell cell)
+    {
+    //greatest x
+    for(int i = 1; i < grid_c_count; i++)
+    {
+        if(cell.cc[cell.c_r][X] < cell.cc[i][X])
+        {
+            cell.c_r = i;
+        }
+    }
+    }
+void Cell_SetLeft(Cell cell)
+    {
+    //smallest x
+    for(int i = 1; i < grid_c_count; i++)
+    {
+        if(cell.cc[cell.c_l][X] > cell.cc[i][X])
+        {
+            cell.c_l = i;
+        }
+    }
+    }
+//links end
+
+//dist helper functions
+float Cell_DCenters(Cell cell, point new_fract, int found_at)
+    {
+    float d = 2.0;
+    found_at = -1;
+    for(int i = 0; i < grid_c_count; i++)
+    {
+        float tf = distance(cell.cc[i], new_fract);
+        if(tf < d)
+        {
+            d = tf;
+            found_at = i;
+        }
+    }
+    return d;
+    }
+float Cell_DLinks(Cell cell, point new_fract)
+    {
+    float d = 2.0;
+    Cell_SetAll(cell);
+
+    if(cell.ce[cell.c_t] == 1)
+    {
+        Cell top = Cell_c(cell.dec + point(0, 1, 0),cell.p_d_min, cell.p_d_delta, cell.p_w_min, cell.p_w_delta );
+        Cell_SetBottom(top);
+        if(top.ce[top.c_b] == 1)
+            d = min(d, DistLineSegment2D(new_fract, cell.cc[cell.c_t], top.cc[top.c_b] + point(0.0, 1.0, 0.0)));
+    }
+    
+    if(cell.ce[cell.c_b] == 1)
+    {
+        Cell bottom = Cell_c(cell.dec + point(0, -1, 0), cell.p_d_min, cell.p_d_delta, cell.p_w_min, cell.p_w_delta);
+        Cell_SetTop(bottom);
+        if(bottom.ce[bottom.c_t] == 1)
+            d = min(d, DistLineSegment2D(new_fract, cell.cc[cell.c_b], bottom.cc[bottom.c_t] + point(0.0, -1.0, 0.0)));
+    }
+    
+    if(cell.ce[cell.c_l] == 1)
+    {
+        Cell left = Cell_c(cell.dec + point(-1, 0, 0), cell.p_d_min, cell.p_d_delta, cell.p_w_min, cell.p_w_delta);
+        Cell_SetRight(left);
+        if(left.ce[left.c_r] == 1)
+            d = min(d, DistLineSegment2D(new_fract, cell.cc[cell.c_l], left.cc[left.c_r] + point(-1.0, 0.0, 0.0)));
+    }
+    
+    if(cell.ce[cell.c_r] == 1)
+    {
+        Cell right = Cell_c(cell.dec + point(1, 0, 0), cell.p_d_min, cell.p_d_delta, cell.p_w_min, cell.p_w_delta);
+        Cell_SetLeft(right);
+        if(right.ce[right.c_l] == 1)
+            d = min(d, DistLineSegment2D(new_fract, cell.cc[cell.c_r], right.cc[right.c_l] + point(1.0, 0.0, 0.0)));
+    }
+    
+
+    return d;
+    }
+//end of dist helper functions
+//
+float Cell_Dist(Cell cell, float warp_pow)
+    {
+    //warp space
+    int found_at;
+    float t = Cell_DCenters(cell, cell.fract, found_at);
+    if(t < cell.cw[found_at])
+    {
+        t = t / cell.cw[found_at];
+        t = pow(t, warp_pow);
+        cell.fract = cell.fract * t + cell.cc[found_at] * (1.0 - t);
+    }
+
+    float d = 2.0;
+    int se = 0; //sum exists
+    for(int i = 0; i < grid_c_count; i++)
+        se += cell.ce[i];
+    if(se > 2)  //can build triangle
+    {
+        float sdt = sdTriangle(cell.fract, cell.cc[0], cell.cc[1], cell.cc[2]);
+        if(sdt < 0.0)
+            return -sdt;
+        else
+            return min(sdt, Cell_DLinks(cell, cell.fract));
+    }
+    return min(d, Cell_DLinks(cell, cell.fract));
+    }
+//
+//Debug
+float CelularDebug(Cell cell)
+    {
+    float xabs = abs(cell.fract[X]), yabs = abs(cell.fract[Y]);
+    float border = 0.5 / 3.0;
+    float border_double = border * 2.0;
+
+    if(max(xabs, yabs) < border && min(abs(xabs - border), abs(yabs - border)) < 0.01)
+    {
+        return 6.0;
+    }
+
+    if(min(xabs, yabs) > border)
+    {
+        return 5.0;
+    }
+    else if(max(xabs, yabs) < border) //CENTER CELL
+    {
+        int found_at;
+        point nf = cell.fract * 3.0;
+        float d = Cell_DCenters(cell, nf, found_at);
+        d = min(d, Cell_DLinks(cell, nf));
+        return d;
+    } //just display other cell centers
+    else if(cell.fract[Y] > border) //top cell
+    {
+        point nf = point(cell.fract[X] * 3.0, (cell.fract[Y] - border_double) * 3.0, 0.0);
+        Cell top = Cell_c(cell.dec + point(0, 1, 0), cell.p_d_min, cell.p_d_delta, cell.p_w_min, cell.p_w_delta);
+        int found_at;
+        float d = Cell_DCenters(top, nf, found_at);
+        return d;
+    }
+    else if(cell.fract[Y] < -border) //bottom cell
+    {
+        point nf = point(cell.fract[X] * 3.0, (cell.fract[Y] + border_double) * 3.0, 0.0);
+        Cell bottom = Cell_c(cell.dec + point(0, -1, 0), cell.p_d_min, cell.p_d_delta, cell.p_w_min, cell.p_w_delta);
+        int found_at;
+        float d = Cell_DCenters(bottom, nf, found_at);
+        return d;
+    }
+    else if(cell.fract[X] < -border) //left cell
+    {
+        point nf = point((cell.fract[X] + border_double) * 3.0, cell.fract[Y] * 3.0, 0.0);
+        Cell left = Cell_c(cell.dec + point(-1, 0, 0), cell.p_d_min, cell.p_d_delta, cell.p_w_min, cell.p_w_delta);
+        int found_at;
+        float d = Cell_DCenters(left, nf, found_at);
+        return d;
+    }
+    else if(cell.fract[X] > border) //right cell
+    {
+        point nf = point((cell.fract[X] - border_double) * 3.0, cell.fract[Y] * 3.0, 0.0);
+        Cell right = Cell_c(cell.dec + point(1, 0, 0), cell.p_d_min, cell.p_d_delta, cell.p_w_min, cell.p_w_delta);
+        int found_at;
+        float d = Cell_DCenters(right, nf, found_at);
+        return d;
+    }
+    return 0.0;
+    }
+color CelularDebugCol(Cell cell)
+    {
+    if(max(abs(cell.fract[X]), abs(cell.fract[Y])) > 0.49)
+        return color(1.0, 0.0, 0.0);
+    float d = CelularDebug(cell);
+    if(d > 5.9)
+        return color(0.231, 0.1, 1.0);
+    if(d > 4.9)
+        return color(0.5, 1.0, 0.0);
+    else if(d > 1.9)
+        return color(0.0, 0.0, 0.1);
+    return color(d);
+    }
+//END of Cell
+
+//end of structs
+shader SkinBumpGen(
+    output color Output_Color = 0,
+    point uv_coords = point(u, v, 0)        [[string label = "Projection"]],
+    float global_scale = 7.4                [[string label = "Global Scale"]],
+    float nmov_scale = 2.3,
+    float nmov_pow = 0.12,
+
+    float block_size = 1.0,
+    float p_d_min = 58.5                    [[string label = "point dist min as percent"]],
+    float p_d_max = 66.7                    [[string label = "point dist max as percent"]],
+    float p_w_r_min = 10.0                  [[string label = "warp rad min as percent"]],
+    float p_w_r_max = 40.5                  [[string label = "warp rad max as percent"]],
+    float p_w = 1.2                         [[string label = "warp effect"]],
+    float width = 5.1                       [[string label = "width"]],
+    float width_g = 81.12                   [[string label = "gradient percentage of width"]],
+    float shift = -4.8
+    )
+{
+    //setup
+    point pos = uv_coords * global_scale;
+    point mn = noise("simplex", pos * nmov_scale) * nmov_pow;
+    pos += mn;
+    pos[X] += shift;
+    pos[Z] = 0.0;
+
+
+    float npd = p_d_min / 200.0;
+    float pdd = p_d_max / 200.0 - npd;
+    float npw = p_w_r_min / 200.0;
+    Cell cell = Cell_c(pos, npd, pdd, npw, p_w_r_max / 200.0 - npw);
+
+    float tf = p_w_r_min / 200.0;
+    float d = Cell_Dist(cell, p_w);
+
+    tf = width / 100.0;
+    if(d < tf)
+    {
+        float nd = 1.0 - d / tf;
+        Output_Color = color(smoothstep(0.0, width_g / 100.0, nd));
+        return;
+    }
+    Output_Color = color(0.0);
+}

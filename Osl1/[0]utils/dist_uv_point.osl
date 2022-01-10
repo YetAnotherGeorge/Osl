@@ -1,0 +1,27 @@
+float Dist2D(point a, point b)
+{
+    return sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) );
+}
+float Dist2D(point a, float x, float y)
+{
+    return sqrt((a[0] - x) * (a[0] - x) + (a[1] - y) * (a[1] - y) );
+}
+
+shader DistUV(
+    output color Output_Color = 0,
+    point target = point(0, 0, 0),
+    float radius = 0.0,
+    int gradient_pow = 1,
+    float invert_fac = 0.0
+    )
+{
+    float d = Dist2D(target, u, v);
+    if(d < radius)
+    {
+        float dnorm = d / radius;
+        d = (1.0 - invert_fac) * ( 1.0 - dnorm) + invert_fac * dnorm;
+        Output_Color = color(pow(d, gradient_pow));
+        return;
+    }
+    Output_Color = color(0);
+}

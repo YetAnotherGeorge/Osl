@@ -1,0 +1,10 @@
+//gradient = [0, 100]
+float GradientDots(point pos, float rad_p, float gradient_p, float nscale, float nmag)
+{
+    point np = pos + noise("simplex", pos * nscale + 1237.4261) * nmag;
+    point fract = point( mod(np[X], 1.0) - 0.5, mod(np[Y], 1.0) - 0.5, 0.0);
+    float rad = rad_p / 100.0;
+    float len = length(fract) * 2.0 - rad; //len = [0, 1 * sqrt(2)]
+    return 1.0 - smoothstep(- gradient_p / 100.0, 0, len);
+}
+//add octaves, "creased" noise between stones, smoother noise on stones

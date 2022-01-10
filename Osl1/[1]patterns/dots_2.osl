@@ -1,0 +1,114 @@
+#define X 0
+#define Y 1
+#define Z 2
+
+#define R 0
+#define G 1
+#define B 2
+
+#define point2(a, b) point(a, b, 0.0)
+#define fract(val) mod(val, 1.0)
+
+point SpaceDistort(point uv, float scale, float move_scale, float move_mag, float rotate_ns, float rotate_nm, float rotate_bs, float threshold) //block distort threshold
+    {
+    point distorted = point2(uv[X] * scale, uv[Y] * scale);
+    distorted += noise("simplex", distorted[X] * move_scale, distorted[Y] * move_scale) * move_mag;
+    distorted[Z] = 0.0;
+
+    float n = noise("simplex", distorted[X] * rotate_ns, distorted[Y] * rotate_ns);
+
+    //rotate in chunks
+    point distorted_scaled = point2(distorted[X] / rotate_bs, distorted[Y] / rotate_bs);
+    if(noise("hash", floor(distorted_scaled[X]), floor(distorted_scaled[Y])) < threshold)
+    {
+        point fr = point2(fract(distorted_scaled[X]) - 0.5, fract(distorted_scaled[Y]) - 0.5);
+
+        float r = length(fr);
+        float taper = max(0.0, 0.5 - r);
+        float angle = atan2(fr[Y], fr[X]) + taper * n * M_PI * rotate_nm;
+        fr[X] = cos(angle) * r + 0.5;
+        fr[Y] = sin(angle) * r + 0.5;
+
+        distorted[X] = (floor(distorted_scaled[X]) + fr[X]) * rotate_bs;
+        distorted[Y] = (floor(distorted_scaled[Y]) + fr[Y]) * rotate_bs;
+    }
+    return distorted;
+    }
+float DDot(point dec_base, point offset, point at, float rad_min, float rad_delta, float move_max, float nscale, float treshold, float out_radius)
+    {
+    point dec_current = dec_base + offset;
+
+    float n = noise("usimplex", dec_current[X] * nscale, dec_current[Y] * nscale);
+
+    if(fract(n * 74.1217) > treshold)
+        return 1000.0;
+    
+    float rad = rad_min + rad_delta * n;
+    float move = (1.5 - rad) * fract(n * 73.8768) * move_max;
+    float move_angle = 2 * M_PI * fract(n * 99.5284);
+
+    point fr = point(offset[X] + 0.5 + cos(move_angle) * move, 
+        offset[Y] + 0.5 + sin(move_angle) * move, 0.0);
+    
+    out_radius = rad;
+    return distance(fr, at);
+    }
+shader Dots(
+    output color Output_Color = 0,
+    point uv_coords = point(u, v, 0) [[string label = "Projection"]],
+    point distort_rotate = point(0.0)   [[string label = "Distort Rotate: scale | mag | block size"]],
+    point distort_general = point(1.0, 0.0, 0.0)  [[string label = "Distort: global scale | move scale | move magnitude"]],
+    float distort_threshold_p = 100.0   [[string label = "Rotate Distort percent"]],
+
+    float r_min_p = 10.0            [[string label = "dot min radius percent"]],
+    float r_max_p = 20.0            [[string label = "dot max radius percent"]],
+    float treshold_p = 100          [[string label = "percentage of dots to keep"]],
+
+    float move_max_p = 100.0                        [[string label = "max move percent [0 - 100]"]],
+    float noise_scale = 0.0                         [[string label = "noise scale"]],
+    point gradient_data  = point(7.0, 7.0, 44.0)    [[string label = "gradients: fac | start | cap"]],
+
+    int iterations = 1
+    )
+{
+    point pos = SpaceDistort(uv_coords, distort_general[0], distort_general[1], distort_general[2], distort_rotate[0], distort_rotate[1], distort_rotate[2], distort_threshold_p / 100.0);
+    float rad_min = r_min_p / 200.0;
+    float rad_delta = (r_max_p - r_min_p) / 200.0;
+    float move_max = move_max_p / 100.0;
+    float treshold = treshold_p / 100.0;
+
+    float col = 0.0;
+    for(int iter = 0; iter < iterations; iter++)
+    {
+        pos[X] += iter * 70.53;
+        pos[Y] += iter * 65.89;
+        point dec = point(floor(pos[X]), floor(pos[Y]), 0.0);
+        point fr = point(fract(pos[X]), fract(pos[Y]), 0.0);
+
+        float min_d = 20, min_d_r;
+        for(int i = -1; i < 2; i++)
+        {
+            for(int j = -1; j < 2; j++)
+            {
+                float tr;
+                float tf = DDot(dec, point(i, j, 0), fr, rad_min, rad_delta, move_max, noise_scale, treshold, tr);
+                if(tf < min_d)
+                {
+                    min_d = tf;
+                    min_d_r = tr;
+                }
+            }
+        }
+
+        if(min_d < min_d_r)
+        {
+            min_d = (min_d_r * gradient_data[0] * 0.01) / min_d;
+            col += smoothstep(gradient_data[1] * 0.01, gradient_data[2] * 0.01, min_d);
+        }
+    }
+    
+
+    //gradient and coloring:
+    
+    Output_Color = color(min(col, 1.0));
+}

@@ -1,0 +1,139 @@
+float ProcessQuad(point p, point x, point y, float circle_pow, float gradient_pow, float gradient_limit)
+{
+    //[0] - bottom
+    //[1] - mid
+    //[2] - top
+    float side_x = abs(x[0] - x[2]);
+    float side_y = abs(y[0] - y[2]);
+    float max_dist = sqrt(side_x * side_x + side_y * side_y) / 2;
+
+    x[1] = (x[0] + x[2]) / 2.0;
+    y[1] = (y[0] + y[2]) / 2.0;
+
+    float md = (1 - sqrt((x[1] - p[0]) * (x[1] - p[0]) + (y[1] - p[1]) * (y[1] - p[1]) ) / max_dist) / circle_pow;
+
+    //distance to bottom x
+    float td = abs(p[0] - x[0]) / max_dist;
+    if(td < md)
+        md = td;
+    //distance to top x
+    td = abs(x[2] - p[0]) / max_dist;
+    if(td < md)
+        md = td;
+
+    //distance to bottom y
+    td = abs(p[1] - y[0]) / max_dist;
+    if(td < md)
+        md = td;
+    //distance to top y
+    td = abs(y[2] - p[1]) / max_dist;
+    if(td < md)
+        md = td;
+    
+    md *= gradient_pow;
+    if(md > gradient_limit)
+        md = gradient_limit;
+    if(-md > gradient_limit)
+        md = -gradient_limit;
+    return (md * gradient_pow);
+}
+float SqareGrid_0(point p, float noise_scale, float move_min, float shift, float circle_pow, float gradient_pow, float gradient_limit)
+{
+    //square size is always 1
+    float yb = floor(p[1]);   //y scale
+    p[0] -= yb * shift;
+    float xb = floor(p[0]);   //x scale
+    
+    p[0] += xb * yb;
+    xb = floor(p[0]);
+    point x = point(xb, 0, xb + 1);
+    point y = point(yb, 0, yb + 1);
+
+    float sq_diag = sqrt(0.5);
+    float sq_side_half = 0.5;
+
+    float noise_a = noise( (xb / 100.0) * noise_scale, (yb / 100.0) * noise_scale) - 0.5;
+    float noise_b = noise(noise_a, cos(yb));
+
+    if(abs(noise_a) < move_min)
+        noise_a = sign(noise_a) * move_min; 
+    if(abs(noise_b) < move_min)
+        noise_b = sign(noise_b) * move_min; 
+
+    float xt = xb + sq_side_half + noise_a;
+    float yt = yb + sq_side_half + noise_a;
+
+    //check what square it's in
+    if(p[0] < xt)
+    {
+        x[2] = xt;
+
+        if(p[1] < yt)
+        {
+            y[2] = yt;
+            return ProcessQuad(p, x, y, circle_pow, gradient_pow, gradient_limit);
+        }
+        else
+        {
+            y[0] = yt;
+            return ProcessQuad(p, x, y, circle_pow, gradient_pow, gradient_limit);
+        }
+    }
+    else
+    {
+        x[0] = xt;
+
+        if(p[1] < yt)
+        {
+            y[2] = yt;
+            return ProcessQuad(p, x, y, circle_pow, gradient_pow, gradient_limit);
+        }
+        else
+        {
+            y[0] = yt;
+            return ProcessQuad(p, x, y, circle_pow, gradient_pow, gradient_limit);
+        }
+    }
+
+    return 0;
+    
+}
+
+point DeformScale(point pos, color scale_col)
+{
+    pos[0] += pos[0] * scale_col[0];
+    pos[1] += pos[1] * scale_col[1];
+    pos[2] += pos[2] * scale_col[2];
+    return pos;
+}
+point DeformTranslate(point pos, color translate_col)
+{
+    pos[0] += translate_col[0];
+    pos[1] += translate_col[1];
+    pos[2] += translate_col[2];
+    return pos;
+}
+shader Square_Grid_1(
+    output color Output_Color = 0,
+    point uv_coords = point(u, v, 0) [[string label = "Projection"]],
+    color deform_scale_col = color(0, 0, 0),
+    color deform_translate_col = color(0, 0, 0),
+    float scale = 68.3,
+    
+    float noise_scale = 67.8,
+    float move_min = 0.07,
+    float shift = 0.77,
+    float circle_pow = 10.0,
+    float gradient_pow = 1.0,
+    float gradient_limit = 2.0
+    )
+{
+    //point pos = transform("world", "object", P) * scale;
+    point pos = DeformTranslate(uv_coords * scale, deform_translate_col);
+    pos = DeformScale(pos, deform_scale_col);
+    color col = color(0, 0, 0);
+
+    float fac = SqareGrid_0(pos, noise_scale, move_min, shift, circle_pow, gradient_pow, gradient_limit);
+    col = color(fac, fac, fac);
+    Output_Color = col;
+}

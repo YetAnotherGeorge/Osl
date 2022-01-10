@@ -1,0 +1,126 @@
+#define X 0
+#define Y 1
+#define Z 2
+
+#define R 0
+#define G 1
+#define B 2
+
+#define point2(a, b) point(a, b, 0.0)
+#define fract(val) mod(val, 1.0)
+
+//custom:
+#define h hlcount[0]
+#define l hlcount[1]
+#define count hlcount[2]
+
+float DistLineSegment2D(point p, point p0, point p1)
+    {
+    vector dir_p = p - p0;
+    vector dir = p1 - p0;
+    float t = clamp(dot(dir_p, dir) / dot(dir, dir), 0.0, 1.0);
+    return length(dir_p - dir * t);
+    }
+shader LinesBox(
+    output color OutputColor = color(0),
+    point proj = point(u, v, 0.0)               [[string label = "UV Projection"]],
+    float global_scale = 1.0                    [[string label = "Global Scale"]],
+    point noise_data = point(1.0, 0.0, 1.0)     [[string label = "Mid Line Noise: scale, mag, outside"]],
+    point hlcount = point(1.0, 1.0, 10)         [[string label = "Height | Length | Count"]],
+    point color_data = point(0.1, 0.0, 0.0)     [[string label = "Gradient: Width | Start P | End P"]],
+    float blur_size = 0.1
+)
+{
+    point pos = proj * global_scale;
+    pos[Z] = 0.0;
+    float width = color_data[0] / 100.0;
+    float d = 0.0;
+
+    float tx = pos[X] / l;
+    float ty = pos[Y] / h;
+    if(min(tx, ty) > 0.0 && max(tx, ty) < 1.0)
+    {
+        float ix = (l / count);
+        float ix2 = ix * 2.0;
+        float sx = floor(pos[X] / ix2) * ix2;
+        float ex = sx + ix2;
+
+        d = min(pos[X] - sx, ex - pos[X]);
+
+        float nx = ( noise("usimplex", sx * noise_data[0], 123.5234) - 0.5 ) * 2.0;
+        float mx = sx + ix *(1.0 + nx * noise_data[1]);
+
+        d = min(d, abs(mx - pos[X]));
+
+        //calculate child lines
+        if(pos[X] < mx)
+        {
+            float sx_noise = noise("usimplex", sx * noise_data[0]) * noise_data[2];
+            if(sx_noise < 1.0)
+            {
+                point line_start = point2(sx, sx_noise * h);
+                sx_noise = fract(sx_noise * 237.8934); //new rand
+                point line_end = point2(sx + sx_noise * (mx - sx), 0.0);
+                sx_noise = fract(sx_noise * 41.5434); //new rand
+                if(sx_noise < 0.5)
+                {
+                    line_end[Y] = h;
+                }
+                d = min(d, DistLineSegment2D(pos, line_start, line_end));
+            }
+        }
+        else
+        {
+            float ex_noise = noise("usimplex", ex * noise_data[0]) * noise_data[2];;
+            if(ex_noise < 1.0)
+            {
+                point line_start = point2(ex, ex_noise * h);
+                ex_noise = fract(ex_noise * 237.8534); //new rand
+                point line_end = point2(mx + ex_noise * (ex - mx), 0.0);
+                ex_noise = fract(ex_noise * 23.5785); //new rand
+                if(ex_noise < 0.5)
+                {
+                    line_end[Y] = h;
+                }
+                d = min(d, DistLineSegment2D(pos, line_start, line_end));
+            }
+        }
+    
+
+        float mx_noise = noise("usimplex", mx * noise_data[0]) * noise_data[2];;
+        if(mx_noise < 1.0)
+        {
+            point line_start = point2(mx, mx_noise * h);
+            float mx_noise_a = fract(mx_noise * 6.8565); //new rand
+            float mx_noise_b = fract(mx_noise * 7.5434); //new rand
+
+            point line_end = point2(sx + mx_noise_a * ix2, 0.0);
+            if(mx_noise_b < 0.5)
+            {
+                line_end[Y] = h;
+            }
+
+            
+            d = min(d, DistLineSegment2D(pos, line_start, line_end));
+        }
+    }
+    else
+    {
+        OutputColor = color(0.0);
+        return;
+    }
+  
+    if(d < width)
+    {
+        d = d / width;
+        float fc = 1.0 - smoothstep(color_data[1] / 100.0, color_data[2] / 100.0, d);
+
+        //blur edges
+        float lh = l / 2, hh = h / 2;
+        float d_edge = min(lh - abs(pos[X] - lh), hh - abs(pos[Y] - hh));
+        fc *= smoothstep(0.0, blur_size, d_edge);
+        OutputColor = color(fc);
+        return;
+    }
+    OutputColor = color(0.0);
+}
